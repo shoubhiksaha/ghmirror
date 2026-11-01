@@ -1,0 +1,47 @@
+# End-to-end test configuration: personal GitHub account -> two local GitLab CE containers.
+source:
+  owner: shoubhiksaha
+  owner_type: user
+  auth:
+    token: ${GITHUB_TOKEN}
+  webhook_secret: e2e-webhook-secret
+  repos:
+    include: ["ghmirror-e2e-*"]
+targets:
+  - name: cloud
+    url: http://localhost:8931
+    token: glpat-e2ecloud000000000000001
+    group: ${E2E_GROUP:-ghmirror-e2e}
+    side_channel: ["docker", "exec", "-i", "glc"]   # command prefix that runs a program on the GitLab host
+    ci_config_path: "pipelines/{repo}.gitlab-ci.yml@{group}/ci-config"
+    mirror_url: http://glc:8931          # how the other GitLab server reaches this one
+  - name: offline
+    url: http://localhost:8932
+    token: glpat-e2eoffline00000000000001
+    group: ${E2E_GROUP:-ghmirror-e2e}
+    side_channel: ["docker", "exec", "-i", "glo"]
+    mirror_url: http://glo:8932
+state:
+  database: sqlite:///${E2E_STATE}/ghmirror.db
+  mirrors_dir: ${E2E_STATE}/mirrors
+  archive_dir: ${E2E_STATE}/archive
+identity:
+  email_domain: github.mirror.test
+  email_map:
+    shoubhiksaha: shoubhik@company.test
+guard:
+  max_disappear_ratio: 0.02
+  max_disappear_count: 1
+schedule:            # long intervals: the e2e drives passes explicitly and through webhooks
+  repos: 86400
+  git: 86400
+  meta: 86400
+  full: 86400
+  org: 86400
+  verify: 86400
+  migration: 9999999
+server:
+  listen: 127.0.0.1:8099
+  workers: 2
+redirect:
+  target: cloud

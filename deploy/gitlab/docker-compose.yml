@@ -1,0 +1,23 @@
+# Minimal self-managed GitLab CE for a mirror target (cloud VM or on-prem). Size for real use:
+# 4 vCPU / 8 GB RAM minimum. After `docker compose up -d`, run ghmirror's prepare-host.sh on this host.
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:19.5.3-ce.0
+    hostname: gitlab.lan.example.com
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'https://gitlab.lan.example.com'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222   # git over SSH; the host's own sshd keeps port 22
+        gitlab_rails['initial_root_password'] = File.read('/run/secrets/root_password').strip
+        # SSO from day one so the first login after promote links to the mirror account by email:
+        # gitlab_rails['omniauth_allow_single_sign_on'] = ['openid_connect']
+        # gitlab_rails['omniauth_auto_link_user'] = ['openid_connect']
+        # gitlab_rails['omniauth_block_auto_created_users'] = false
+    ports: ["443:443", "2222:22"]
+    volumes: [config:/etc/gitlab, logs:/var/log/gitlab, data:/var/opt/gitlab]
+    shm_size: 256m
+    secrets: [root_password]
+    restart: unless-stopped
+secrets:
+  root_password: { file: ./root_password.txt }
+volumes: { config: {}, logs: {}, data: {} }

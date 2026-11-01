@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+.DS_Store
+
+# written by ./setup.sh / ghmirror init: secrets and local configuration
+deploy/compose/.env
+deploy/compose/ghmirror.yaml
+deploy/compose/identities.yaml
+deploy/compose/secrets/
+deploy/compose/prepare-host.sh
+deploy/compose/docker-compose.override.yml
+deploy/gitlab/root_password.txt
+
+# end-to-end test runs (the harness config is kept)
+e2e/state/*
+!e2e/state/config.yaml

@@ -1,0 +1,14 @@
+# Build context is the repository root: send only what the image needs, never local secrets
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+.git
+docs
+e2e
+verification
+deploy/compose/.env
+deploy/compose/secrets
+deploy/compose/ghmirror.yaml
+deploy/compose/identities.yaml
+deploy/gitlab/root_password.txt

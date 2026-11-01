@@ -1,0 +1,32 @@
+
+### R9a recheck after time: ff MR 9 and list of MRs with state
+iid=10 src=sq1 state=opened merged_by=- merged_at=-
+iid=9 src=ff1 state=merged merged_by=root merged_at=2026-10-31T00:25:25.303Z
+iid=7 src=feat2 state=opened merged_by=- merged_at=-
+iid=1 src=feat1 state=opened merged_by=- merged_at=-
+iid=8 src=feat3 state=merged merged_by=alice merged_at=2019-01-03T00:00:00.000Z
+
+### R9a2 recreate mc MR (show error if any)
+201 {"id":11,"iid":11,"project_id":1,"title":"mc MR","description":null,"state":"opened","created_at":"2026-10-31T00:27:30.689Z","updated_at":"2026-10-31T00:27:30.689Z","merged_by":null,"merge_user":null,"merged_at":null,"closed_by":null,"closed_at":null,"target_branch":"main","source_branch":"mc1","user_notes_count":0,"upvotes":0,"downvotes":0,"author":{"id":2,"username":"alice","public_email":null,"
+
+### R21 show errors: blocked project-Owner erin via Sudo
+201 {"id":4,"iid":77,"project_id":1,"title":"GH issue 77","description":null,"state":"opened","created_at":"2018-08-08T08:08:08.000Z","updated_at":"2026-10-31T00:27:33.751Z","closed_at":null,"closed_by":null,"labels":[],"milestone":null,"assignees":[],"author":{"id":6,"username":"erin","public_email":null,"name":"erin Ghost","state":"blocked","locked":false,"avatar_url":"https://www.gravatar.com/avata
+201 {"id":10,"type":null,"body":"note by blocked owner","author":{"id":6,"username":"erin","public_email":null,"name":"erin Ghost","state":"blocked","locked":false,"avatar_url":"https://www.gravatar.com/avatar/683d95ac9796f961e0a31efd3b04bb1e9235efd7fa4f30641c430f7ed14d4d0a?s=80\u0026d=identicon","web_url":"http://gl.local:8929/erin"},"created_at":"2018-08-09T00:00:00.000Z","updated_at":"2018-08-09T00
+
+### R21b same user erin UNBLOCKED (active Owner) for comparison
+201 true
+409 {"message":"Duplicated issue"}
+
+iid=null created_at=null author=null
+
+### R21c erin DEACTIVATED Owner
+403 {"message":"The user you are trying to deactivate has been active in the past 90 days and cannot be deactivated"}
+201 {"id":11,"type":null,"body":"note by deactivated owner","author":{"id":6,"username":"erin","publ
+created_at=2018-08-09T00:00:00.000Z author=erin
+
+### R22 show error: blocked group-Owner frank
+201 {"id":12,"type":null,"body":"x","author":{"id":7,"username":"frank","public_email":null,"name":"frank Ghost","state":"blocked","locked":false,"avatar_url":"https://www.gravatar.com/avatar/90bb1ac5b67e7632d5cfdcf82888e36644d0831d601e4301930ba104be11f80a?s=80\u0026d=identicon","web_url":"http://gl.local:8929/frank"},"created_at":"2018-08-10T00:00:00.000Z","updated_at":"2018-08-10T00:00:00.000Z","sys
+
+### R23 show error: assign blocked/deactivated users
+200 {"id":10,"iid":10,"project_id":1,"title":"sq MR","description":null,"state":"opened","created_at":"2026-10-31T00:24:47.370Z","updated_at":"2026-10-31T00:27:50.710Z","merged_by":null,"merge_user":null,"merged_at":null,"closed_by":null,"closed_at":null,"target_branch":"main","source_branch":"sq1","user_notes_count":2,"upvotes":0,"downvotes":0,"author":{"id":2,"username":"alice","public_email":null,"
+== DONE3 ==

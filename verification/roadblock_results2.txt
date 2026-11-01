@@ -1,0 +1,43 @@
+
+### R9 redo: branches off CURRENT main, then ff-merge push and squash push
+ff MR=9 sq MR=10
+-- R9a: push main fast-forwarded to ff1 (GitHub 'merge commit'/'rebase' style: source head reachable)
+ff MR state=opened merged_by=null merged_at=null
+-- R9a2: true merge commit (non-ff) of a new branch
+remote: 
+remote: To create a merge request for mc1, visit:        
+remote:   http://gl.local:8929/acme/repo1/-/merge_requests/new?merge_request%5Bsource_branch%5D=mc1        
+remote: 
+mc MR state=null merged_by=null merge_commit=null
+-- R9b: squash (different sha) of sq1 onto main
+Automatic merge went well; stopped before committing as requested
+Squash commit -- not updating HEAD
+sq MR state=opened (squash on GitHub leaves GitLab MR open unless engine acts)
+
+### R15 redo: diff discussion with position (show errors)
+200 [{"id":8,"head_commit_sha":"e4df11ebaee7213aed1cd3012f85e46381ad187e","base_commit_sha":"c0a845daede769eb5502b98a4acbdee0427e7d64","start_commit_sha":"c0a845daede769eb5502b98a4acbdee0427e7d64","created_at":"2026-10-31T00:24:50.821Z","merge_request_id":10,"state":"collected","real_size":"1","patch_id
+base=c0a845daede769eb5502b98a4acbdee0427e7d64 head=e4df11ebaee7213aed1cd3012f85e46381ad187e start=c0a845daede769eb5502b98a4acbdee0427e7d64
+201 {"id":"889afc0c0ef6fcf9b9e7abf7c1155d18b3225257","individual_note":false,"resolvable":true,"resolved":false,"notes":[{"id":8,"type":"DiffNote","body":"line comment","author":{"id":5,"username":"dave","public_email":null,"name":"dave Ghost","state":"active","locked":false,"avatar_url":"https://www.gr
+note author=dave created_at=2022-02-02T02:02:02.000Z type=DiffNote new_line=1
+-- reply in thread as alice (Sudo) with created_at (Developer -> expect now)
+reply author=alice created_at=2026-10-31T00:26:20.345Z
+
+### R21 blocked user who is project Owner: Sudo + created_at + iid (the mirror-mode account model)
+blocked owner: status via body -> iid=null created_at=null author=null state=null
+note created_at=null author=null
+
+### R22 GROUP-level Owner (not project member) + blocked: does created_at work via inherited ownership?
+group-owner note created_at=null author=null
+
+### R23 can a blocked/deactivated user still be listed as MR reviewer/assignee? (assignee_ids on MR via API)
+assignees= reviewers=
+
+### R24 can the mirror bot push while ALL humans are blocked and branch rule is Maintainers+force? (yes above) ; can a blocked Owner push via git? (expect denied)
+git-http as blocked erin -> 200
+
+### R25 user-level sign-in blocked but API via Sudo works: confirm erin cannot get a session (password login) -> blocked
+(blocked users: 'cannot sign in' per docs; verified state=blocked)
+
+### R26 placeholder/import-user types visible? list users of type placeholder (none yet)
+users: frank:blocked erin:blocked dave:active carol:blocked bob:deactivated alice:active root:active
+== DONE2 ==

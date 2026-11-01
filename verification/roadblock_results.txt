@@ -1,0 +1,135 @@
+== waiting for GitLab health ==
+readiness=200 after 10s
+== create root PAT via rails runner ==
+token ok
+
+### version
+200 {"version":"19.5.3","revision":"0d4c9a9a2fa","kas":{"enabled":true,"externalUrl":"ws://gl.local:8929/-/kubernetes-agent/","externalK8sProxyUrl":"http://gl.local:8929/-/kubernetes-agent/k8s-proxy/","version":"19.5.3"},"enterprise":false}
+
+### SETUP group/project/users
+project id 1
+alice=2 bob=3 carol=4 dave=5
+
+### R17 deactivate a freshly created user via API (expect 403 'not dormant'); block via API
+201 true
+201 true
+-- fallback: deactivate bob via rails runner
+State cannot transition via "deactivate"
+head: illegal byte count -- 0
+bob state: deactivated
+head: illegal byte count -- 0
+carol state: blocked
+
+### push test repo (branches + refs/pull/7/head)
+remote:   http://gl.local:8929/acme/repo1/-/merge_requests/new?merge_request%5Bsource_branch%5D=feat3        
+remote: 
+branches pushed rc=0
+
+### R10 push refs/pull/* (GitHub hidden refs) to GitLab
+To http://localhost:8929/acme/repo1.git
+ * [new reference]   refs/pull/7/head -> refs/pull/7/head
+To http://localhost:8929/acme/repo1.git
+ * [new branch]      refs/pull/7/head -> gh-pr/7
+6773c0d05e50e5e4ce0a37cc9d97edcde72b7fbd	refs/heads/gh-pr/7
+6773c0d05e50e5e4ce0a37cc9d97edcde72b7fbd	refs/pull/7/head
+
+### R13 protected branch: default protection on main; set allow_force_push + maintainers; force-push as bot
+200 []
+
+201 {"id":1,"name":"*","push_access_levels":[{"id":1,"access_level":40,"access_level_description":"Maintainers","deploy_key_id":null}],"merge_access_levels":[{"id":1,"access_level":40,"access_level_de
+ + ef75394...c0a845d main -> main (forced update)
+force push rc=0
+
+### issue for note tests
+issue iid=1
+
+### R1 Sudo as ACTIVE Developer (alice): create note
+head: illegal byte count -- 0
+status above; author=alice
+
+### R4 created_at honored when Sudo as Developer? (expect ignored)
+head: illegal byte count -- 0
+created_at=2026-10-31T00:02:40.651Z author=alice
+
+### R5 created_at honored when Sudo as project OWNER (dave)?
+head: illegal byte count -- 0
+created_at=2020-01-02T03:04:05.000Z author=dave
+
+### R5b created_at as admin (root) without Sudo
+head: illegal byte count -- 0
+created_at=2020-01-02T03:04:05.000Z author=root
+
+### R3 Sudo as DEACTIVATED user (bob)
+201 {"id":5,"type":null,"body":"hello from bob","author":{"id":3,"username":"bob","public_email":null,"name":"bob Ghost","state":"deactivated","locked":false,"avatar_url":"https://www.gravatar.com/avatar/55e7241277e1bcd96230b81ed6652ef9f1e96d3e62f54e6a4af6e81359c0e1bb?s=80\u0026d=identicon","web_url":"http://gl.local:8929/bob"},"created_at":"2026-10-31T00:02:45.839Z","updated_at":"2026-10-31T00:02:45.
+head: illegal byte count -- 0
+bob state after sudo: deactivated
+
+### R2 Sudo as BLOCKED user (carol)
+201 {"id":6,"type":null,"body":"hello from carol","author":{"id":4,"username":"carol","public_email":null,"name":"carol Ghost","state":"blocked","locked":false,"avatar_url":"https://www.gravatar.com/avatar/12760ed1e595ea92847e17fb3879ba040eac7de8a744010eb471e47e75bac035?s=80\u0026d=identicon","web_url":"http://gl.local:8929/carol"},"created_at":"2026-10-31T00:02:56.480Z","updated_at":"2026-10-31T00:02
+
+### R6 issue with explicit iid + created_at via Sudo as Owner (dave) and as Developer (alice)
+head: illegal byte count -- 0
+iid=42 created_at=2021-05-06T07:08:09.000Z author=dave
+head: illegal byte count -- 0
+iid=43 created_at=2026-10-31T00:03:02.206Z author=alice
+
+### R7 MR iid counter advance: first MR, then burn to land on iid 7
+head: illegal byte count -- 0
+MR iid=1 author=alice created_at=2026-10-31T00:03:05.095Z
+burn iid=2 deleted; burn iid=3 deleted; burn iid=4 deleted; burn iid=5 deleted; burn iid=6 deleted; 
+head: illegal byte count -- 0
+landed MR iid=7 (want 7)
+
+### R8 MR created_at via API (expect ignored) and via rails runner
+head: illegal byte count -- 0
+api created_at=2026-10-31T00:03:40.722Z iid=8
+runner updated
+head: illegal byte count -- 0
+after runner: iid=8 created_at=2019-01-01T00:00:00.000Z updated_at=2019-01-02T00:00:00.000Z
+
+### R11 approvals on CE via Sudo (alice approves MR 7)
+201 {"user_has_approved":true,"user_can_approve":false,"approved":true,"approved_by":[{"user":{"id":2,"username":"alice"
+head: illegal byte count -- 0
+approved_by=alice
+
+### R15 diff discussion with position + created_at via Sudo Owner (dave) on MR 7
+head: illegal byte count -- 0
+head: illegal byte count -- 0
+disc note author=null created_at=null new_line=null type=null
+
+### R9a merged-state detection: fast-forward main to feat2 and push -> MR 7 state?
+fatal: refusing to merge unrelated histories
+head: illegal byte count -- 0
+MR7 state=opened merged_by=null merged_at=null
+
+### R9b squash-merge on source: main gets a different commit with feat3 content -> MR 8 state?
+fatal: refusing to merge unrelated histories
+head: illegal byte count -- 0
+MR8 state=opened (expect opened)
+
+### R9c mark MR 8 merged via rails runner with merged_at/merged_by
+merged via runner
+head: illegal byte count -- 0
+MR8 state=merged merged_by=alice merged_at=2019-01-03T00:00:00.000Z
+
+### R12 admin adds SSH key to alice
+201 {"id":1,"title":"gh-key","created_at":"2026-10-31T00:17:27.443Z","expires_at":null,"last_used_at":null,"key":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA
+
+### R16 change user email: add secondary (admin, skip_confirmation) then make primary with skip_reconfirmation
+201 {"id":6,"email":"alice@company.example","confirmed_at":"2026-10-31T00:17:28.816Z"}
+
+head: illegal byte count -- 0
+primary now: alice@company.example
+
+### R14 external CI config path (Free?)
+head: illegal byte count -- 0
+ci_config_path=ci/repo1.gitlab-ci.yml@acme/ci-config
+
+### R19 award emoji as alice with Sudo (no created_at param exists)
+head: illegal byte count -- 0
+award user=alice created_at=2026-10-31T00:17:36.290Z
+
+### R20 MR author change + approvals backdate via runner (what API cannot do)
+approval backdated: 2020-06-06 06:06:06 UTC
+
+== DONE ==

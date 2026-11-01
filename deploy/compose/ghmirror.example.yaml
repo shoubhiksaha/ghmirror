@@ -1,0 +1,60 @@
+# ghmirror configuration (reference). `./setup.sh` / `ghmirror init` writes a ready ghmirror.yaml for you.
+# ${VAR} and ${VAR:-default} are read from the environment.
+source:
+  owner: acme                     # GitHub organization (or user) to mirror
+  owner_type: org                 # org | user
+  auth:                           # GitHub App (recommended) ...
+    app_id: ${GITHUB_APP_ID}
+    app_private_key_file: /secrets/github-app.pem
+    app_installation_id: ${GITHUB_APP_INSTALLATION_ID}
+    # token: ${GITHUB_TOKEN}      # ... or a classic PAT (repo, read:org)
+    migration_token: ${GITHUB_MIGRATION_TOKEN:-}   # optional classic PAT of an owner (repo, admin:org) for the
+                                                   # weekly migration archive; Apps cannot use that API
+  webhook_secret: ${GITHUB_WEBHOOK_SECRET}
+  repos:
+    include: ["*"]
+    exclude: []
+targets:
+  - name: cloud
+    url: https://gitlab-cloud.example.com
+    token: ${GITLAB_CLOUD_TOKEN}            # admin user's PAT: api, sudo, admin_mode, write_repository
+    group: acme                             # top-level group (created if missing)
+    side_channel: ["ssh", "-i", "/secrets/id_ed25519", "gitlab-cloud.example.com", "sudo"]
+    visibility_cap: private                 # never more open than this
+    ci_config_path: "pipelines/{repo}.gitlab-ci.yml@{group}/ci-config"
+  - name: offline
+    url: https://gitlab.lan.example.com
+    token: ${GITLAB_OFFLINE_TOKEN}
+    group: acme
+    side_channel: ["ssh", "-i", "/secrets/id_ed25519", "gitlab.lan.example.com", "sudo"]
+    mirror_url: https://gitlab.lan.example.com   # how the OTHER GitLab server reaches this one (push mirror
+                                                 # after promote); defaults to git_url, then url
+state:
+  database: ${DATABASE_URL:-sqlite:////data/ghmirror.db}
+  mirrors_dir: /data/mirrors
+  archive_dir: /data/archive
+identity:
+  email_domain: github.mirror.acme.example   # placeholder emails until the identity map is filled
+  email_map_file: identities.yaml            # github login -> company email (used at creation and promote)
+  import_keys: true
+guard:
+  max_disappear_ratio: 0.02    # halt if more than 2% of tracked repos/issues vanish in one pass ...
+  max_disappear_count: 1       # ... and more than this many
+schedule:                      # seconds
+  repos: 3600
+  git: 21600
+  meta: 3600
+  full: 86400
+  org: 21600
+  verify: 86400
+  migration: 604800
+alerts:
+  webhook_url: ${ALERT_WEBHOOK_URL:-}        # Slack-compatible incoming webhook
+server:
+  listen: 0.0.0.0:8080
+  workers: 4
+redirect:
+  target: cloud
+  base_url: https://git.acme.example
+promote:
+  broadcast_message: "GitHub is unavailable: this GitLab is now our primary code host. See the runbook."

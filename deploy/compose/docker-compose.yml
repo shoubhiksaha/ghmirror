@@ -1,0 +1,44 @@
+# Engine + PostgreSQL. Runs next to the offline GitLab; needs only outbound HTTPS
+# (api.github.com, github.com, the cloud GitLab) plus SSH to each GitLab host for the side channel.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ghmirror
+      POSTGRES_USER: ghmirror
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:                     # first start initialises the database (socket only); TCP = really up
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ghmirror -d ghmirror"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+  engine:
+    image: ghmirror:local
+    build: { context: ../.., dockerfile: deploy/compose/Dockerfile }
+    command: ["run"]
+    env_file: .env            # written by `ghmirror init` (setup.sh): tokens, secrets
+    environment:
+      DATABASE_URL: postgresql://ghmirror:${POSTGRES_PASSWORD}@postgres:5432/ghmirror
+    volumes:
+      - ./ghmirror.yaml:/config/ghmirror.yaml:ro
+      - ./identities.yaml:/config/identities.yaml:ro
+      - ./secrets:/mnt/secrets:ro    # GitHub App key, side-channel SSH key + known_hosts (copied to /secrets)
+      - mirrors:/data/mirrors          # L1 bare mirrors (itself a full git backup)
+      - archive:/data/archive          # L2 raw archive + migration archives + reports
+    ports: ["127.0.0.1:8080:8080"]   # expose /webhook through your tunnel / reverse proxy only
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: unless-stopped
+  redirector:
+    image: ghmirror:local
+    command: ["redirector", "--listen", "0.0.0.0:8090"]
+    environment:
+      DATABASE_URL: postgresql://ghmirror:${POSTGRES_PASSWORD}@postgres:5432/ghmirror
+    env_file: .env
+    volumes: ["./ghmirror.yaml:/config/ghmirror.yaml:ro", "./identities.yaml:/config/identities.yaml:ro",
+              "./secrets:/mnt/secrets:ro"]
+    ports: ["8090:8090"]
+    depends_on: { postgres: { condition: service_healthy } }
+    profiles: ["failover"]           # start it at promote time: docker compose --profile failover up -d
+volumes: { pgdata: {}, mirrors: {}, archive: {} }

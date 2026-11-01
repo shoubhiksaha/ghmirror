@@ -1,0 +1,70 @@
+### import status
+{"import_status":"finished","import_error":null,"stats":{"fetched":{"collaborator":1,"diff_note":11,"issue":3,"issue_event":13,"label":9,"note":8,"pull_request":4,"pull_request_merged_by":3,"pull_request_review":7},"imported":{"collaborator":1,"diff_note":11,"issue":3,"issue_event":13,"label":9,"note":8,"pull_request":4,"pull_request_merged_by":3,"pull_request_review":7}}}
+
+### issues (GitHub: #1 2026-07-12 anaranyalikestodev 2c, #2 2026-07-19 SMan16 1c, #3 2026-09-06 Feluda4u 1c)
+iid=1 state=closed created=2026-07-12T23:00:40.000Z author=anaranyalikestodev_placeholder_1w52glg notes=2
+iid=2 state=closed created=2026-07-19T20:20:20.000Z author=SMan16_placeholder_m2sco1 notes=1
+iid=3 state=closed created=2026-09-06T20:17:39.000Z author=Feluda4u_placeholder_flcgvo notes=1
+
+### merge requests (GitHub: #4 merged 10rc/3rev, #5 merged 1rc/2rev, #6 merged 0/1, #7 open 0/1)
+iid=7 state=opened created=2026-10-28T22:05:52.000Z merged_at=null author=shoubhiksaha_placeholder_1sicdkm merged_by=null notes=2 src=release-3.0.1
+iid=6 state=merged created=2026-10-28T21:56:15.000Z merged_at=2026-10-28T22:03:55.000Z author=shoubhiksaha_placeholder_1sicdkm merged_by=shoubhiksaha_placeholder_1sicdkm notes=2 src=readme-sdk-gap
+iid=5 state=merged created=2026-10-28T21:37:46.000Z merged_at=2026-10-28T21:48:22.000Z author=shoubhiksaha_placeholder_1sicdkm merged_by=shoubhiksaha_placeholder_1sicdkm notes=4 src=workspaces
+iid=4 state=merged created=2026-10-21T20:26:46.000Z merged_at=2026-10-28T21:11:52.000Z author=shoubhiksaha_placeholder_1sicdkm merged_by=shoubhiksaha_placeholder_1sicdkm notes=14 src=release-2.5.0
+
+### MR 4 discussions: types, authors, created_at, positions
+Note	shoubhiksaha_placeholder_1sicdkm	2026-10-21T20:26:48.000Z	system=true	line=-	body=requested review from `@Copilot`
+Note	Copilot_placeholder_1ul181b	2026-10-21T20:26:58.000Z	system=false	line=-	body=**Review:** Commented  Copilot was unable to review this pul
+Note	coderabbitaibot_placeholder_fsv85t	2026-10-21T20:27:01.000Z	system=false	line=-	body=<!-- coderabbit-ai-generated:v1 -->  <!-- This is an auto-ge
+LegacyDiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-21T20:32:32.000Z	system=false	line=-	body=<!-- coderabbit-ai-generated:v1 -->  **🎯 Functional Correctn
+DiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-21T20:32:32.000Z	system=false	line=32	body=<!-- coderabbit-ai-generated:v1 -->  **🩺 Stability & Availab
+LegacyDiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-21T20:32:33.000Z	system=false	line=-	body=<!-- coderabbit-ai-generated:v1 -->  **🎯 Functional Correctn
+DiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-21T20:32:33.000Z	system=false	line=489	body=<!-- coderabbit-ai-generated:v1 -->  **🩺 Stability & Availab
+Note	coderabbitaibot_placeholder_fsv85t	2026-10-21T20:32:35.000Z	system=false	line=-	body=**Review:** Commented  <!-- coderabbit-ai-generated:v1 -->  
+LegacyDiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-28T20:11:14.000Z	system=false	line=-	body=<!-- coderabbit-ai-generated:v1 -->  **<picture><img src="ht
+LegacyDiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-28T20:11:14.000Z	system=false	line=-	body=<!-- coderabbit-ai-generated:v1 -->  **<picture><img src="ht
+DiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-28T20:11:14.000Z	system=false	line=10	body=<!-- coderabbit-ai-generated:v1 -->  **<picture><img src="ht
+LegacyDiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-28T20:11:14.000Z	system=false	line=-	body=<!-- coderabbit-ai-generated:v1 -->  **<picture><img src="ht
+DiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-28T20:11:14.000Z	system=false	line=163	body=<!-- coderabbit-ai-generated:v1 -->  **<picture><img src="ht
+LegacyDiffNote	coderabbitaibot_placeholder_fsv85t	2026-10-28T20:11:14.000Z	system=false	line=-	body=<!-- coderabbit-ai-generated:v1 -->  **<picture><img src="ht
+Note	coderabbitaibot_placeholder_fsv85t	2026-10-28T20:11:16.000Z	system=false	line=-	body=**Review:** Commented  <!-- coderabbit-ai-generated:v1 -->  
+Note	shoubhiksaha_placeholder_1sicdkm	2026-10-28T20:28:43.000Z	system=true	line=-	body=changed title from **Release {-2.5-}.0: upload fixes, stream
+Note	shoubhiksaha_placeholder_1sicdkm	2026-10-28T21:11:36.000Z	system=true	line=-	body=assigned to `@Copilot`
+Note	coderabbitaibot_placeholder_fsv85t	2026-10-28T21:42:18.000Z	system=true	line=-	body=mentioned in merge request !5
+
+### MR 4 approvals
+{"approved_by":[]}
+
+### users created by import (placeholders / import users)
+Copilot_placeholder_1ul181b	state=active	bot=false	email=copilot_placeholder_1ul181b@noreply.gl.local	name=Placeholder Copilot
+coderabbitaibot_placeholder_fsv85t	state=active	bot=false	email=coderabbitaibot_placeholder_fsv85t@noreply.gl.local	name=Placeholder github Source User
+anaranyalikestodev_placeholder_1w52glg	state=active	bot=false	email=anaranyalikestodev_placeholder_1w52glg@noreply.gl.local	name=Placeholder Anaranya Mukhopadhyay
+SMan16_placeholder_m2sco1	state=active	bot=false	email=sman16_placeholder_m2sco1@noreply.gl.local	name=Placeholder github Source User
+Feluda4u_placeholder_flcgvo	state=active	bot=false	email=feluda4u_placeholder_flcgvo@noreply.gl.local	name=Placeholder github Source User
+Copilot_placeholder_g4dpdm	state=active	bot=false	email=copilot_placeholder_g4dpdm@noreply.gl.local	name=Placeholder Copilot
+shoubhiksaha_placeholder_1sicdkm	state=active	bot=false	email=shoubhiksaha_placeholder_1sicdkm@noreply.gl.local	name=Placeholder Shoubhik Saha
+frank	state=blocked	bot=false	email=frank@mirror.example	name=frank Ghost
+erin	state=active	bot=false	email=erin@mirror.example	name=erin Ghost
+dave	state=active	bot=false	email=dave@mirror.example	name=dave Ghost
+carol	state=blocked	bot=false	email=carol@mirror.example	name=carol Ghost
+bob	state=deactivated	bot=false	email=bob@mirror.example	name=bob Ghost
+alice	state=active	bot=false	email=alice@company.example	name=alice Ghost
+root	state=active	bot=false	email=gitlab_admin_0c21a3@example.com	name=Administrator
+
+### placeholder reassignment list for group acme
+Source host,Import type,Source user identifier,Source user name,Source username,GitLab username,GitLab public email
+https://github.com,github,126425423,Shoubhik Saha,shoubhiksaha,"",""
+https://github.com,github,198982749,Copilot,Copilot,"",""
+https://github.com,github,100409211,,Feluda4u,"",""
+https://github.com,github,89221645,,SMan16,"",""
+https://github.com,github,240043710,Anaranya Mukhopadhyay,anaranyalikestodev,"",""
+https://github.com,github,136622811,,coderabbitai[bot],"",""
+https://github.com,github,175728472,Copilot,Copilot,"",""
+
+
+### labels / branches / tags / protected branches
+labels=9 branches=4 tags=16 protected=["main"]
+
+### issue 1 notes (authors/created_at)
+shoubhiksaha_placeholder_1sicdkm	2026-07-13T16:10:31.000Z	system=false	check version 2.2.1 I implemented 
+shoubhiksaha_placeholder_1sicdkm	2026-07-13T11:52:34.000Z	system=false	will be working towards it
