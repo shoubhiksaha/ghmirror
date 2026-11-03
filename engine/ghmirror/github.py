@@ -108,7 +108,9 @@ class GitHub:
             params = None
 
     def graphql(self, query, variables):
-        r = self.request("POST", "/graphql", json={"query": query, "variables": variables}).json()
+        # github.com: api.github.com/graphql; Enterprise Server: https://HOST/api/v3 -> https://HOST/api/graphql
+        url = self.api[:-len("/v3")] + "/graphql" if self.api.rstrip("/").endswith("/api/v3") else self.api + "/graphql"
+        r = self.request("POST", url, json={"query": query, "variables": variables}).json()
         if r.get("errors"):
             raise RuntimeError(f"GraphQL errors: {r['errors']}")
         return r["data"]

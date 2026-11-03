@@ -1,0 +1,78 @@
+# Sample: exactly what `ghmirror init` writes for an organization "acme" with two GitLab targets
+# (cloud: Omnibus in Docker; offline: Omnibus package), token auth and a public webhook URL.
+# With the GitHub App option, source.auth holds app_id / app_private_key_file / app_installation_id instead.
+source:
+  owner: acme
+  owner_type: org
+  auth:
+    token: ${GITHUB_TOKEN}
+    migration_token: ${GITHUB_MIGRATION_TOKEN:-}
+  webhook_secret: ${GITHUB_WEBHOOK_SECRET}
+  repos:
+    include:
+    - '*'
+    exclude: []
+targets:
+- name: cloud
+  url: https://gitlab.example.com
+  token: ${GITLAB_CLOUD_TOKEN}
+  group: acme
+  visibility_cap: private
+  mirror_url: https://gitlab.example.com
+  side_channel:
+  - ssh
+  - -i
+  - /secrets/id_ed25519
+  - -o
+  - BatchMode=yes
+  - -o
+  - UserKnownHostsFile=/secrets/known_hosts
+  - -o
+  - StrictHostKeyChecking=yes
+  - -o
+  - ServerAliveInterval=30
+  - ghmirror@gitlab.example.com
+  - sudo
+  - docker
+  - exec
+  - -i
+  - gitlab
+- name: offline
+  url: https://gitlab.lan.acme.example
+  token: ${GITLAB_OFFLINE_TOKEN}
+  group: acme
+  visibility_cap: private
+  mirror_url: https://gitlab.lan.acme.example
+  side_channel:
+  - ssh
+  - -i
+  - /secrets/id_ed25519
+  - -o
+  - BatchMode=yes
+  - -o
+  - UserKnownHostsFile=/secrets/known_hosts
+  - -o
+  - StrictHostKeyChecking=yes
+  - -o
+  - ServerAliveInterval=30
+  - ghmirror@gitlab.lan.acme.example
+  - sudo
+state:
+  database: ${DATABASE_URL:-sqlite:////data/ghmirror.db}
+  mirrors_dir: /data/mirrors
+  archive_dir: /data/archive
+identity:
+  email_domain: acme.github-mirror.invalid
+  email_map_file: identities.yaml
+  import_keys: true
+guard:
+  max_disappear_ratio: 0.02
+  max_disappear_count: 1
+alerts:
+  webhook_url: ${ALERT_WEBHOOK_URL:-}
+server:
+  listen: 0.0.0.0:8080
+  workers: 4
+redirect:
+  target: cloud
+  base_url: https://git.example.com

@@ -1,4 +1,5 @@
-# ghmirror configuration (reference). `./setup.sh` / `ghmirror init` writes a ready ghmirror.yaml for you.
+# ghmirror configuration (reference). `./setup.sh` / `ghmirror init` writes a ready ghmirror.yaml for you;
+# examples/ghmirror.yaml is exactly what it writes.
 # ${VAR} and ${VAR:-default} are read from the environment.
 source:
   owner: acme                     # GitHub organization (or user) to mirror
@@ -19,14 +20,19 @@ targets:
     url: https://gitlab-cloud.example.com
     token: ${GITLAB_CLOUD_TOKEN}            # admin user's PAT: api, sudo, admin_mode, write_repository
     group: acme                             # top-level group (created if missing)
-    side_channel: ["ssh", "-i", "/secrets/id_ed25519", "gitlab-cloud.example.com", "sudo"]
+    # written by init from prepare-host.sh's line: SSH as the restricted `ghmirror` user, host key pinned,
+    # then `sudo` (Omnibus) or `sudo docker exec -i <container>` (GitLab in Docker)
+    side_channel: ["ssh", "-i", "/secrets/id_ed25519", "-o", "BatchMode=yes", "-o", "UserKnownHostsFile=/secrets/known_hosts",
+                   "-o", "StrictHostKeyChecking=yes", "-o", "ServerAliveInterval=30",
+                   "ghmirror@gitlab-cloud.example.com", "sudo", "docker", "exec", "-i", "gitlab"]
     visibility_cap: private                 # never more open than this
     ci_config_path: "pipelines/{repo}.gitlab-ci.yml@{group}/ci-config"
   - name: offline
     url: https://gitlab.lan.example.com
     token: ${GITLAB_OFFLINE_TOKEN}
     group: acme
-    side_channel: ["ssh", "-i", "/secrets/id_ed25519", "gitlab.lan.example.com", "sudo"]
+    side_channel: ["ssh", "-i", "/secrets/id_ed25519", "-o", "BatchMode=yes", "-o", "UserKnownHostsFile=/secrets/known_hosts",
+                   "-o", "StrictHostKeyChecking=yes", "-o", "ServerAliveInterval=30", "ghmirror@gitlab.lan.example.com", "sudo"]
     mirror_url: https://gitlab.lan.example.com   # how the OTHER GitLab server reaches this one (push mirror
                                                  # after promote); defaults to git_url, then url
 state:

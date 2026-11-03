@@ -1,0 +1,61 @@
+{
+ "ts": 1793745688.9771361,
+ "owner": "shoubhiksaha",
+ "targets": [
+  "cloud"
+ ],
+ "repos": [
+  "shoubhiksaha/ghmirror-demo-source"
+ ],
+ "repair": false,
+ "checked": {
+  "repos": 1,
+  "issues": 2,
+  "mrs": 5,
+  "pending": 0
+ },
+ "drift_count": 4,
+ "drift": [
+  {
+   "target": "cloud",
+   "repo": "shoubhiksaha/ghmirror-demo-source",
+   "kind": "ref",
+   "id": "refs/heads/local-experiment",
+   "field": "sha",
+   "github": null,
+   "gitlab": "8c66c426b0fa4c4d34c34be1d9473e3bf2b2ffd5"
+  },
+  {
+   "target": "cloud",
+   "repo": "shoubhiksaha/ghmirror-demo-source",
+   "kind": "issue",
+   "id": 1,
+   "field": "title",
+   "github": "Crash on startup",
+   "gitlab": "Crash on startup (edited on the mirror)"
+  },
+  {
+   "target": "cloud",
+   "repo": "shoubhiksaha/ghmirror-demo-source",
+   "kind": "issue",
+   "id": 1,
+   "field": "labels",
+   "github": [
+    "bug",
+    "mirror-test"
+   ],
+   "gitlab": [
+    "mirror-test"
+   ]
+  },
+  {
+   "target": "cloud",
+   "repo": "shoubhiksaha/ghmirror-demo-source",
+   "kind": "issue",
+   "id": 3,
+   "field": "exists",
+   "github": false,
+   "gitlab": true
+  }
+ ]
+}

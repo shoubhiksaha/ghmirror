@@ -19,8 +19,9 @@ Exactness differs by layer. Design for all three; don't pretend layer 3 is lossl
 | L3 GitLab objects | Issues → issues, PRs → MRs, review comments → MR diff notes, labels, milestones, releases, wiki, groups/members/roles | Near-lossless on self-managed GitLab; authorship lossy on GitLab.com SaaS | Sync engine (webhooks + reconciler) using the GitLab API |
 
 Anything GitHub has and GitLab cannot represent (Discussions, Projects v2,
-Codespaces, Dependabot alerts, Actions run history) lives in L2 only, and the
-engine links to the archived copy from a pinned GitLab issue/wiki page.
+Codespaces, Dependabot alerts, Actions run history) was meant to live in L2 only.
+**As built, L2 does not capture these yet** (§22): the engine archives issues, pull
+requests, reviews, comments, reactions, labels, milestones, releases and their assets.
 
 ---------------------------------------------------------------------------
 ## 2. Topology
@@ -311,7 +312,7 @@ Repo layout for this project:
 * GitLab.com SaaS cannot show true authorship for ongoing sync → use
   self-managed for exactness.
 * GitHub Discussions, Projects v2, Actions run history, Codespaces, security
-  alerts have no GitLab equivalent → archived (L2), not rendered.
+  alerts have no GitLab equivalent and are not captured (not in L2 either; §22).
 * Secret values, deploy keys' private halves, and OAuth app credentials are
   never readable and therefore never mirrored.
 * While GitHub is the source, GitLab copies are read-only mirrors; that is what
@@ -555,7 +556,7 @@ PostgreSQL). Deployment: `deploy/`. Operations: `docs/RUNBOOK.md`. End-to-end te
   through GitLab push mirrors; issues/MRs created after failover reach it only through
   GitLab project export/import (manual) until a GitLab source adapter exists.
 * Packages and container registries (`skopeo sync`), GitHub Discussions / Projects v2 /
-  Actions run history into L2 (they are in the weekly migration archive), Pages.
+  Actions run history into L2, Pages.
 * CI translation and shadow pipelines (process, not engine), SSO configuration
   (GitLab setting), vanity DNS and webhook relay (infrastructure).
 * A wrapper command for GitLab's importer seed; the engine adopts importer-seeded

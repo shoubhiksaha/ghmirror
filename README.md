@@ -16,6 +16,54 @@ primary code host.
   mirror of the new primary. `demote` undoes it exactly, so drills are safe.
 
 **Full guide with screenshots:** [`docs/ghmirror-guide.pdf`](docs/ghmirror-guide.pdf).
+**See it work:** [recorded failover drill](docs/demo) (promote in 7.8 s, a developer merges on GitLab,
+demote in 1.2 s).
+
+![Failover drill: check, verify, promote, a developer keeps working on GitLab](docs/demo/ghmirror-failover-drill.gif)
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph GH["GitHub (source of truth)"]
+    REPOS["Repositories<br/>issues · PRs · reviews<br/>releases · members"]
+  end
+
+  subgraph ENG["ghmirror engine (Docker Compose, one host)"]
+    direction TB
+    RX["Webhook receiver<br/>HMAC-checked"] --> Q[("PostgreSQL<br/>job queue · ID map<br/>guard · state")]
+    SCH["Scheduler<br/>periodic passes · nightly verify"] --> Q
+    Q --> W["Workers"]
+    W --> L1[("L1 bare git mirrors")]
+    W --> L2[("L2 JSON archive")]
+    GUARD{{"Deletion guard<br/>halts on mass loss"}} -.- W
+  end
+
+  subgraph CLOUD["GitLab: cloud (self-managed)"]
+    GLC["Group = org<br/>projects · issues #N · MRs !N<br/>mirror accounts (blocked)"]
+  end
+  subgraph OFF["GitLab: offline / on-prem (self-managed)"]
+    GLO["Same group, same numbers"]
+  end
+
+  REPOS -- "webhooks" --> RX
+  W -- "REST + git fetch (read-only App or token)" --> REPOS
+  W == "API (admin bot, Sudo)<br/>git push" ==> GLC
+  W == "API + git push" ==> GLO
+  W -. "side channel (SSH → gitlab-rails)<br/>timestamps, merged MRs" .-> GLC
+  W -. "side channel" .-> GLO
+
+  DEV(["Developers"]) -. "after ghmirror promote" .-> GLC
+  GLC -. "push mirror (after promote)" .-> GLO
+```
+
+In normal operation data flows one way, GitHub to both GitLabs, which stay read-only to people.
+**Layers:** L1 is a bare git mirror of every repository (any branch or tag can be re-pushed); L2 is
+the raw GitHub JSON of every object, kept as evidence; L3 is the GitLab objects themselves.
+**Failover** (`ghmirror promote --primary cloud`) stops the GitHub pull, activates the people's
+GitLab accounts, re-applies branch protections, enables CI and turns the other GitLab into a push
+mirror of the new primary. `ghmirror demote` reverses every step. See
+[`docs/SECURITY.md`](docs/SECURITY.md) for the trust boundaries in this picture.
 
 ## Quick start
 
@@ -42,6 +90,14 @@ version). GitLab.com SaaS is not supported: it cannot impersonate users or keep 
 | | |
 |---|---|
 | [`docs/ghmirror-guide.pdf`](docs/ghmirror-guide.pdf) | How it works, setup, a screenshot tour, operations, test results, references |
+| [`docs/INSTALL.md`](docs/INSTALL.md) | Reproducible installation: pinned versions, interactive and unattended install, upgrades |
+| [`examples/`](examples) | Sample configuration (`ghmirror.yaml`, `.env`, `identities.yaml`) exactly as setup writes it |
+| [`docs/demo/`](docs/demo) | Recorded failover drill (video and terminal recording) with measured timings |
+| [`docs/samples/`](docs/samples) | Real parity-verification reports: clean, with drift, after repair |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model, trust boundaries, secrets, hardening checklist, vulnerability reporting |
+| [`docs/CAPACITY.md`](docs/CAPACITY.md) | Storage requirements, GitHub API limits, first-copy time, RPO and RTO (measured) |
+| [`docs/SUPPORT-MATRIX.md`](docs/SUPPORT-MATRIX.md) | Supported GitHub and GitLab editions, what is copied, exact limits of the offline copy |
+| [`docs/COMMERCIAL.md`](docs/COMMERCIAL.md) | Draft commercial deployment and support offering, open decisions, readiness gaps |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Operations: steady state, deletion guard, failover, drills, restore |
 | [`DESIGN.md`](DESIGN.md) | Full design and decisions |
 | [`ROADBLOCKS.md`](ROADBLOCKS.md) | Every risk checked and every defect found in testing, with fixes |
@@ -64,5 +120,6 @@ deploy/compose/  setup.sh, docker-compose.yml, Dockerfile, example config
 deploy/gitlab/   GitLab CE template for a mirror target
 e2e/             end-to-end test harness (real GitHub + two GitLab containers)
 verification/    roadblock test scripts and their recorded results
-docs/            runbook and the PDF guide
+docs/            install, security, capacity, support matrix, runbook, PDF guide (+ guide-src/), demo, samples
+examples/        sample configuration
 ```

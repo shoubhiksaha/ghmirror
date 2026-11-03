@@ -95,8 +95,18 @@ Then:
 ## 6. Drills (monthly)
 
 Run on a snapshot of the offline instance or a scratch GitLab, never on the live cloud mirror:
-`promote` → two engineers clone, branch, MR, approve, merge, tag → `demote` → `sync --full`
-→ `verify` must report 0 drift. `e2e/run_e2e.sh` steps 11–13 automate exactly this.
+`promote` → two engineers clone, branch, MR, approve, merge, tag → `demote` → delete the merge
+requests and issues made during the drill → `sync --full` → `verify --format markdown` must report
+**PASS**. `e2e/run_e2e.sh` steps 11–13 automate exactly this; `docs/demo/` is a recording of one drill.
+
+Why the cleanup matters:
+- Right after `demote`, `verify` reports the drill's work (branches moved, merge requests that
+  exist only on GitLab). ghmirror never deletes those itself.
+- The next sync resets the branches to GitHub. Any commit that exists only on GitLab is first saved
+  in the engine's git mirror under `refs/ghmirror-backup/<time>/target/`.
+- Merge requests and issues stay until a person deletes them. A drill MR left in place (say !8)
+  also takes the number that GitHub's next PR #8 needs, which breaks number parity for that PR.
+  This is why drills belong on a snapshot.
 
 ## 7. Restore drill (quarterly)
 
@@ -111,8 +121,8 @@ Rebuilding a lost GitLab, by situation:
 
 ## 8. Known limits
 
-See DESIGN.md §13 and ROADBLOCKS.md. In short: GitHub Discussions, Projects, Actions run
-history and secret values are archived (L2) but have no GitLab rendering; MR creation dates,
+See DESIGN.md §13, ROADBLOCKS.md and docs/SUPPORT-MATRIX.md. In short: GitHub Discussions,
+Projects, Actions run history and secret values are not mirrored or archived; MR creation dates,
 squash-merged state and approval dates need the side channel; extra branches named
 `gh-pr/<n>` exist only for PRs from forks that are still open; the L2 archive is not replayed
 into GitLab automatically (section 7).

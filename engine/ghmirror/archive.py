@@ -11,6 +11,22 @@ def _safe(s):
     return re.sub(r"[^A-Za-z0-9_.@+-]", "_", str(s))
 
 
+# fields of a repository embedded in another object (a PR's head/base) that change on every push or star;
+# they are not a change of the object, so they must not create a new archived version of it
+VOLATILE_REPO_FIELDS = {"pushed_at", "updated_at", "size", "stargazers_count", "watchers_count", "watchers",
+                        "forks_count", "forks", "open_issues_count", "open_issues", "network_count",
+                        "subscribers_count"}
+
+
+def _stable(obj, top=True):
+    if isinstance(obj, dict):
+        nested_repo = not top and "full_name" in obj and "pushed_at" in obj
+        return {k: _stable(v, False) for k, v in obj.items() if not (nested_repo and k in VOLATILE_REPO_FIELDS)}
+    if isinstance(obj, list):
+        return [_stable(v, False) for v in obj]
+    return obj
+
+
 class Archive:
     def __init__(self, root):
         self.root = os.path.abspath(root)
@@ -21,7 +37,7 @@ class Archive:
         if os.path.exists(path):
             with open(path) as f:
                 old = f.read()
-            if old == data:
+            if old == data or _stable(json.loads(old)) == _stable(json.loads(data)):
                 return False
             hist = os.path.join(os.path.dirname(path), "_history", os.path.basename(path)[:-5])
             os.makedirs(hist, exist_ok=True)

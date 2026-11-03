@@ -1,0 +1,55 @@
+
+<h1 class="chapter" id="s6"><span class="num">6</span>A tour of the mirror</h1>
+<p class="lead">Every screenshot in this section is from the end-to-end test. A private GitHub repository with pull requests, reviews, issues, labels, milestones, releases, bots and a deleted repository was mirrored into two GitLab CE 19.5 instances. Unless a caption says otherwise, they show the <b>cloud</b> GitLab as an administrator sees it. The offline GitLab is identical (§6.8).</p>
+
+<h2>6.1 Pull requests keep their numbers and dates</h2>
+<p>GitHub PR #3 is GitLab merge request !3, and issue #1 is issue #1. Old links, commit messages such as <code>(#7)</code>, and references in chat and tickets therefore still point at the right item. Authors, creation and merge times, and merge state are copied exactly:</p>
+<table class="compact">
+<tr><th>GitHub</th><th>Title</th><th>State on GitHub</th><th>Created (UTC)</th><th>Merged (UTC)</th><th>GitLab</th><th>State on GitLab</th><th>Match</th></tr>
+<tr><td>PR #3</td><td>Merge-commit PR</td><td>merged</td><td>11:00:52</td><td>11:01:09</td><td>!3</td><td>merged</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>PR #4</td><td>Squash PR</td><td>merged (squash)</td><td>11:00:54</td><td>11:01:17</td><td>!4</td><td>merged</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>PR #5</td><td>Rebase PR</td><td>merged (rebase)</td><td>11:00:55</td><td>11:01:25</td><td>!5</td><td>merged</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>PR #6</td><td>Closed PR</td><td>closed</td><td>11:00:57</td><td>—</td><td>!6</td><td>closed</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>PR #7</td><td>Open PR</td><td>merged later</td><td>11:00:58</td><td>11:58:56</td><td>!7</td><td>merged</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>PR #9</td><td>Late PR</td><td>open</td><td>11:58:48</td><td>—</td><td>!9</td><td>opened</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>Issue #1</td><td>Crash on startup (config loader)</td><td>closed, 2 comments</td><td>11:00:45</td><td>—</td><td>#1</td><td>closed, 2 notes</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>Issue #2</td><td>Docs typo</td><td>closed, 1 comment</td><td>11:00:50</td><td>—</td><td>#2</td><td>closed, 1 note</td><td><span class="pill ok">exact</span></td></tr>
+<tr><td>Issue #8</td><td>New issue after first sync</td><td>open</td><td>11:58:46</td><td>—</td><td>#8</td><td>opened</td><td><span class="pill ok">exact</span></td></tr>
+</table>
+<p class="small">All on 31 October 2026, all by <code>shoubhiksaha</code> on both sides. There is no PR #8 and no issue #3–#7 or #9: GitHub numbers issues and PRs from one shared sequence, and GitLab leaves exactly the same gaps.</p>
+<figure><img src="img/03-mr-list.png"><figcaption><b>Figure 7.</b> Merge requests of the mirrored project: !3 to !9 with GitHub's titles, authors and states. !3 carries its label <code>mirror-test</code> and milestone <code>v1.0</code>.</figcaption></figure>
+
+<h2>6.2 Reviews, threads and reactions</h2>
+<figure><img src="img/04-mr3-overview.png"><figcaption><b>Figure 8.</b> MR !3. The author is the person's mirror account, not a bot, and the timestamps are GitHub's. “Merged by Shoubhik Saha” is set through the side channel. The description, the review summary and comments from bots such as Copilot appear in order.</figcaption></figure>
+<figure><img src="img/05-mr3-diff.png"><figcaption><b>Figure 9.</b> The same review comment sits on the same line of the same diff: “Why change line 5?” on <code>app.txt</code> line 5, with its reply and the 🚀 reaction. The diff is GitHub's exact base…head, rebuilt from hidden refs even though the source branch was deleted on GitHub after merging.</figcaption></figure>
+<figure><img src="img/16-mr4-overview.png"><figcaption><b>Figure 10.</b> MR !4 was a <b>squash</b> merge on GitHub. GitLab's API cannot mark such an MR as merged, so the side channel records it as merged, with the right merger and time.</figcaption></figure>
+
+<h2>6.3 Issues</h2>
+<figure><img src="img/07-issue-list.png"><figcaption><b>Figure 11.</b> Issues with their GitHub numbers, states, labels (colours included) and milestone.</figcaption></figure>
+<figure><img src="img/06-issue1.png"><figcaption><b>Figure 12.</b> Issue #1 with reactions, assignee, labels and milestone. The <i>Development</i> panel lists the MRs that reference it, which is GitHub's “linked pull requests”.</figcaption></figure>
+
+<h2>6.4 Repository: branches, tags, releases, milestones</h2>
+<figure><img src="img/13-branches.png"><figcaption><b>Figure 13.</b> All branches, at GitHub's exact commits.</figcaption></figure>
+<figure><img src="img/14-tags.png"><figcaption><b>Figure 14.</b> Tags, including annotated ones, linked to releases.</figcaption></figure>
+<figure><img src="img/08-releases.png"><figcaption><b>Figure 15.</b> Releases with their notes, author and dates. Uploaded release assets are copied into GitLab's package registry and attached to the release as links.</figcaption></figure>
+<figure><img src="img/10-milestones.png"><figcaption><b>Figure 16.</b> Milestone <code>v1.0</code> with its due date and progress.</figcaption></figure>
+
+<h2>6.5 Nobody can change the mirror by accident</h2>
+<figure><img src="img/15-protected.png"><figcaption><b>Figure 17.</b> In MIRROR mode, every branch matches a protected rule <code>*</code>. People cannot push or merge, and only the mirror bot writes. Promote replaces this rule with the GitHub branch protections (§4).</figcaption></figure>
+
+<h2>6.6 Mirror accounts</h2>
+<figure><img src="img/11-admin-users.png"><figcaption><b>Figure 18.</b> Admin › Users, filtered on <i>Blocked</i>. Every GitHub person and bot has an account, blocked while GitHub is primary. Shoubhik Saha already has the company email from <code>identities.yaml</code>. The bots keep placeholder addresses.</figcaption></figure>
+
+<h2>6.7 Deleted on GitHub, kept on GitLab</h2>
+<figure><img src="img/12-doomed-archived.png"><figcaption><b>Figure 19.</b> The repository <code>ghmirror-e2e-doomed</code> was deleted on GitHub during the test. The mirror does not follow deletions: the GitLab copy is <b>archived</b> (read-only), keeps all its data, and an alert is raised. This holds on both GitLabs.</figcaption></figure>
+
+<h2>6.8 The offline copy</h2>
+<p>The offline GitLab receives the same objects from the same engine, independently. It is not a copy of the cloud GitLab, so if one GitLab is damaged the other is not affected.</p>
+<figure><img src="img/30-offline-project.png"><figcaption><b>Figure 20.</b> Offline GitLab: the same project, 8 commits, 5 branches, 3 tags, 2 releases, head <code>1f716862</code>.</figcaption></figure>
+<figure><img src="img/31-offline-mr-list.png"><figcaption><b>Figure 21.</b> Offline GitLab: the same merge requests !3 to !9.</figcaption></figure>
+
+<h2>6.9 After a failover (promote)</h2>
+<p>These screenshots come from the failover drill. <code>ghmirror promote --primary cloud</code> was run, then <code>demote</code> afterwards.</p>
+<figure><img src="img/20-promoted-banner.png"><figcaption><b>Figure 22.</b> Everyone sees a broadcast banner. CI/CD (<i>Build</i> in the menu) is now enabled, and GitHub's branch protections replace the mirror-only rule.</figcaption></figure>
+<figure><img src="img/21-promoted-users.png"><figcaption><b>Figure 23.</b> Shoubhik Saha's account is now <b>active</b> with the company email, so the first SSO login links to it and the person sees their own history. The bot accounts stay blocked.</figcaption></figure>
+<figure><img src="img/22-promoted-members.png"><figcaption><b>Figure 24.</b> Group members after promote: the person has the role GitHub gives them. The test used a personal account, whose owner becomes Owner. In an organization, owners become Owners and members get the organization's base permission.</figcaption></figure>

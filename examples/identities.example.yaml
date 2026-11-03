@@ -1,0 +1,6 @@
+# GitHub login -> company email. Used to create the mirror accounts and, at failover, to give each
+# person their account (email confirmed, SSO identity linked). Anyone missing gets a placeholder
+# address <login>@<identity.email_domain> and can be fixed later; it is needed before a failover,
+# not before mirroring. `ghmirror init` pre-lists the organization's members as comments.
+alice: alice@acme.example
+bob: bob.smith@acme.example

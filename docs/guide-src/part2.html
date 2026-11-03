@@ -1,0 +1,157 @@
+<!-- ============================== 3 ============================== -->
+<h1 class="chapter" id="s3"><span class="num">3</span>How it works</h1>
+
+<h2 id="s3-1">3.1 Components</h2>
+<p>ghmirror is one Python service (the <i>engine</i>), packaged as a Docker image, with a PostgreSQL database for its state. It reads from GitHub over the REST and GraphQL APIs and git. It writes to each GitLab through the REST API, git pushes, and a small <i>side channel</i> for the few fields the API cannot set.</p>
+<figure>
+<svg viewBox="0 0 680 372" font-family="-apple-system,Helvetica Neue,Arial" font-size="10.5">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#6b7587"/></marker>
+  </defs>
+  <!-- GitHub -->
+  <rect x="6" y="20" width="150" height="250" rx="10" fill="#f6f8fa" stroke="#24292f" stroke-width="1.4"/>
+  <rect x="6" y="20" width="150" height="30" rx="10" fill="#24292f"/><rect x="6" y="38" width="150" height="12" fill="#24292f"/>
+  <text x="81" y="40" fill="#fff" font-weight="650" font-size="11.5" text-anchor="middle">GitHub organization</text>
+  <g fill="#24292f" font-size="10"><text x="18" y="74">• Repositories, wikis</text><text x="18" y="96">• Issues, pull requests</text><text x="18" y="118">• Reviews, line comments</text><text x="18" y="140">• Releases, assets</text><text x="18" y="162">• Users, SSH/GPG keys</text><text x="18" y="184">• Members, teams</text><text x="18" y="206">• Branch protection</text></g>
+  <rect x="18" y="222" width="126" height="36" rx="6" fill="#fff" stroke="#c9d1d9"/><text x="81" y="237" text-anchor="middle" font-size="9" fill="#57606a">GitHub App</text><text x="81" y="250" text-anchor="middle" font-size="9" fill="#57606a">(read-only, private repos)</text>
+  <!-- arrows GH -> engine -->
+  <line x1="158" y1="72" x2="214" y2="72" stroke="#6b7587" stroke-width="1.6" marker-end="url(#a1)"/><text x="186" y="66" text-anchor="middle" font-size="8.6" fill="#5a6476">webhooks</text>
+  <line x1="158" y1="132" x2="214" y2="132" stroke="#6b7587" stroke-width="1.6" marker-end="url(#a1)"/><text x="186" y="126" text-anchor="middle" font-size="8.6" fill="#5a6476">REST/GraphQL</text>
+  <line x1="158" y1="192" x2="214" y2="192" stroke="#6b7587" stroke-width="1.6" marker-end="url(#a1)"/><text x="186" y="186" text-anchor="middle" font-size="8.6" fill="#5a6476">git fetch</text>
+  <!-- Engine -->
+  <rect x="216" y="20" width="244" height="340" rx="10" fill="#f3f7fd" stroke="#1f5fae" stroke-width="1.4"/>
+  <rect x="216" y="20" width="244" height="30" rx="10" fill="#1f5fae"/><rect x="216" y="38" width="244" height="12" fill="#1f5fae"/>
+  <text x="338" y="40" fill="#fff" font-weight="650" font-size="11.5" text-anchor="middle">ghmirror engine (Docker)</text>
+  <g font-size="9.6">
+    <rect x="230" y="60" width="216" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="242" y="79"><tspan font-weight="650">Webhook receiver</tspan> · HMAC check, de-dupe</text>
+    <rect x="230" y="98" width="216" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="242" y="117"><tspan font-weight="650">Job queue</tspan> · durable, coalesced per repo</text>
+    <rect x="230" y="136" width="104" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="282" y="155" text-anchor="middle"><tspan font-weight="650">Workers</tspan> (sync)</text>
+    <rect x="342" y="136" width="104" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="394" y="155" text-anchor="middle"><tspan font-weight="650">Scheduler</tspan></text>
+    <rect x="230" y="174" width="104" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="282" y="193" text-anchor="middle"><tspan font-weight="650">Deletion guard</tspan></text>
+    <rect x="342" y="174" width="104" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="394" y="193" text-anchor="middle"><tspan font-weight="650">Verify</tspan> (parity)</text>
+    <rect x="230" y="212" width="216" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="242" y="231"><tspan font-weight="650">promote / demote</tspan> · failover switch</text>
+    <rect x="230" y="250" width="216" height="30" rx="6" fill="#fff" stroke="#b9cbe6"/><text x="242" y="269"><tspan font-weight="650">/metrics /status /healthz</tspan> · alerts</text>
+  </g>
+  <g font-size="9.2">
+    <rect x="230" y="292" width="68" height="56" rx="6" fill="#eef1f5" stroke="#aab4c3"/><text x="264" y="314" text-anchor="middle" font-weight="650">L1</text><text x="264" y="327" text-anchor="middle">bare git</text><text x="264" y="339" text-anchor="middle">mirrors</text>
+    <rect x="304" y="292" width="68" height="56" rx="6" fill="#eef1f5" stroke="#aab4c3"/><text x="338" y="314" text-anchor="middle" font-weight="650">L2</text><text x="338" y="327" text-anchor="middle">JSON</text><text x="338" y="339" text-anchor="middle">archive</text>
+    <rect x="378" y="292" width="68" height="56" rx="6" fill="#eef1f5" stroke="#aab4c3"/><text x="412" y="314" text-anchor="middle" font-weight="650">State</text><text x="412" y="327" text-anchor="middle">PostgreSQL</text><text x="412" y="339" text-anchor="middle">id map, jobs</text>
+  </g>
+  <!-- arrows engine -> GitLab -->
+  <line x1="462" y1="90" x2="520" y2="90" stroke="#6b7587" stroke-width="1.6" marker-end="url(#a1)"/>
+  <line x1="462" y1="250" x2="520" y2="250" stroke="#6b7587" stroke-width="1.6" marker-end="url(#a1)"/>
+  <!-- GitLab cloud -->
+  <g font-size="9.4">
+  <rect x="522" y="20" width="152" height="150" rx="10" fill="#fff8f5" stroke="#e2492f" stroke-width="1.4"/>
+  <rect x="522" y="20" width="152" height="30" rx="10" fill="#e2492f"/><rect x="522" y="38" width="152" height="12" fill="#e2492f"/>
+  <text x="598" y="40" fill="#fff" font-weight="650" font-size="11.5" text-anchor="middle">GitLab · cloud</text>
+  <text x="532" y="72">• REST API (admin token,</text><text x="540" y="85">Sudo = act as author)</text><text x="532" y="104">• git push, ref-exact</text><text x="532" y="123">• side channel: Rails</text><text x="540" y="136">agent over SSH/sudo</text><text x="532" y="155">• one group per GitHub org</text>
+  <rect x="522" y="190" width="152" height="150" rx="10" fill="#fff8f5" stroke="#e2492f" stroke-width="1.4"/>
+  <rect x="522" y="190" width="152" height="30" rx="10" fill="#e2492f"/><rect x="522" y="208" width="152" height="12" fill="#e2492f"/>
+  <text x="598" y="210" fill="#fff" font-weight="650" font-size="11.5" text-anchor="middle">GitLab · offline</text>
+  <text x="532" y="242">• same as cloud, on the</text><text x="540" y="255">company network</text><text x="532" y="274">• independent of any</text><text x="540" y="287">cloud provider</text><text x="532" y="306">• engine usually runs</text><text x="540" y="319">next to this one</text>
+  </g>
+</svg>
+<figcaption><b>Figure 1.</b> System components. The engine only reads from GitHub and writes the same changes to every GitLab target.</figcaption>
+</figure>
+
+<table class="compact">
+<tr><th style="width:26%">Component</th><th>Responsibility</th><th style="width:22%">Code</th></tr>
+<tr><td>Webhook receiver</td><td>Verifies GitHub's HMAC signature, drops duplicate deliveries and turns each event into a job (git, metadata, full, repos, org).</td><td><code>server.py</code></td></tr>
+<tr><td>Job queue</td><td>Durable (survives restarts), coalesces repeated jobs for the same repo, keeps per-repo order, retries with back-off and moves failing jobs to a dead-letter state.</td><td><code>db.py</code></td></tr>
+<tr><td>Workers</td><td>Run a repo sync against every target: git first, then metadata.</td><td><code>sync.py</code>, <code>gitmirror.py</code></td></tr>
+<tr><td>Scheduler</td><td>Periodic passes (repos hourly, metadata hourly, full nightly, git 6-hourly, verify nightly, migration archive weekly). Covers missed webhooks.</td><td><code>server.py</code></td></tr>
+<tr><td>Identity manager</td><td>Creates and maintains a mirror account for every GitHub user who appears in the data.</td><td><code>identity.py</code></td></tr>
+<tr><td>Deletion guard</td><td>Detects disappearing data and halts or archives instead of deleting.</td><td><code>engine.py</code></td></tr>
+<tr><td>Side channel</td><td>Persistent <code>gitlab-rails</code> agent for fields the API cannot set (section 3.5).</td><td><code>sidechannel.py/.rb</code></td></tr>
+<tr><td>Verify</td><td>Compares GitHub and each GitLab field by field and reports drift (optionally repairs it).</td><td><code>verify.py</code></td></tr>
+<tr><td>Promote / demote</td><td>Failover switch (section 4).</td><td><code>promote.py</code></td></tr>
+<tr><td>Redirector</td><td>Turns old <code>github.com/org/repo/pull/12</code> links into the GitLab URL of <code>!12</code>.</td><td><code>redirector.py</code></td></tr>
+</table>
+
+<h2 id="s3-2">3.2 Three layers of copy</h2>
+<p>The design keeps three independent copies of the organization. Each layer protects against a different failure.</p>
+<figure>
+<svg viewBox="0 0 680 168" font-family="-apple-system,Helvetica Neue,Arial" font-size="10">
+  <rect x="4" y="6" width="672" height="48" rx="8" fill="#fdeee9" stroke="#e2492f"/>
+  <text x="18" y="27" font-weight="700" font-size="12" fill="#b2371f">L3</text><text x="48" y="27" font-weight="650" font-size="11">GitLab objects (cloud + offline)</text>
+  <text x="48" y="44" fill="#4a5366">Projects, issues, MRs, notes, users… the copy people use. Same numbers, authors and dates as GitHub.</text>
+  <rect x="4" y="60" width="672" height="48" rx="8" fill="#e8f0fa" stroke="#1f5fae"/>
+  <text x="18" y="81" font-weight="700" font-size="12" fill="#1f5fae">L2</text><text x="48" y="81" font-weight="650" font-size="11">Raw archive on the engine host</text>
+  <text x="48" y="98" fill="#4a5366">Every GitHub object as JSON, with history of every change, release asset files, plus GitHub's weekly migration tarball.</text>
+  <rect x="4" y="114" width="672" height="48" rx="8" fill="#eef1f5" stroke="#8a94a6"/>
+  <text x="18" y="135" font-weight="700" font-size="12" fill="#4a5366">L1</text><text x="48" y="135" font-weight="650" font-size="11">Bare git mirrors on the engine host</text>
+  <text x="48" y="152" fill="#4a5366">Every branch, tag and PR head; force-pushed-over commits are preserved under refs/ghmirror-backup/.</text>
+</svg>
+<figcaption><b>Figure 2.</b> L1 and L2 live on the engine host and do not depend on GitLab. The code of either GitLab can be rebuilt from L1. L2 preserves the record as JSON, but replaying it into a new GitLab is not automated (§7.5, §9).</figcaption>
+</figure>
+
+<h2 id="s3-3">3.3 Mirror accounts (identity)</h2>
+<p>For every GitHub user who appears in the data, the engine creates a GitLab account with the <b>same username</b>, display name, avatar, SSH keys and GPG keys. Accounts are matched by a hidden marker (<code>ghmirror github_id:&lt;id&gt;</code>) in the admin note, so renames and re-installs never create duplicates.</p>
+<figure>
+<svg viewBox="0 0 680 150" font-family="-apple-system,Helvetica Neue,Arial" font-size="9.8">
+  <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#6b7587"/></marker></defs>
+  <rect x="4" y="18" width="170" height="116" rx="9" fill="#f6f8fa" stroke="#24292f"/>
+  <text x="89" y="40" text-anchor="middle" font-weight="650" font-size="11">GitHub user</text>
+  <text x="16" y="62">@alice</text><text x="16" y="80" fill="#57606a">name, avatar, keys</text><text x="16" y="98" fill="#57606a">authors issues, PRs,</text><text x="16" y="114" fill="#57606a">reviews, comments</text>
+  <line x1="176" y1="76" x2="236" y2="76" stroke="#6b7587" stroke-width="1.6" marker-end="url(#a3)"/><text x="206" y="68" text-anchor="middle" font-size="8.6" fill="#5a6476">sync</text>
+  <rect x="238" y="18" width="196" height="116" rx="9" fill="#fff8f5" stroke="#e2492f"/>
+  <text x="336" y="40" text-anchor="middle" font-weight="650" font-size="11">Mirror account (MIRROR mode)</text>
+  <text x="250" y="62">alice · <tspan fill="#b42318" font-weight="650">blocked</tspan> (cannot log in)</text><text x="250" y="80" fill="#4a5366">Owner of the mirror group, so the</text><text x="250" y="96" fill="#4a5366">engine can post as alice (Sudo) with</text><text x="250" y="112" fill="#4a5366">the original timestamps</text>
+  <line x1="436" y1="76" x2="496" y2="76" stroke="#6b7587" stroke-width="1.6" marker-end="url(#a3)"/><text x="466" y="68" text-anchor="middle" font-size="8.6" fill="#5a6476">promote</text>
+  <rect x="498" y="18" width="178" height="116" rx="9" fill="#e7f4ea" stroke="#1a7f37"/>
+  <text x="587" y="40" text-anchor="middle" font-weight="650" font-size="11">Real account (PRIMARY)</text>
+  <text x="510" y="62">alice · <tspan fill="#1a7f37" font-weight="650">active</tspan></text><text x="510" y="80" fill="#4a5366">company email applied</text><text x="510" y="96" fill="#4a5366">real role from GitHub</text><text x="510" y="112" fill="#4a5366">first SSO login links it</text>
+</svg>
+<figcaption><b>Figure 3.</b> Lifecycle of an account. Bots and people who have left the organization stay blocked at promotion.</figcaption>
+</figure>
+<p>While mirroring, nobody can log in as a mirror account and nothing can be pushed by hand. The copy stays an exact image of GitHub. At failover, <code>promote</code> activates the human accounts, applies their company e-mail from <code>identities.yaml</code> and gives each person the role they had on GitHub. This is the only change needed to "turn mirror accounts into real accounts".</p>
+
+<h2 id="s3-4">3.4 Same numbers, same diffs</h2>
+<p><b>Numbers.</b> GitHub numbers issues and PRs in one shared sequence (#1, #2, #3…). GitLab has separate counters for issues and merge requests. The engine creates objects strictly in number order and keeps them aligned: issue #2 stays issue #2, and PR #3 becomes merge request <b>!3</b>, not !1. If anything ever breaks the alignment (for example a failed create), the side channel renumbers the MR and its git ref, and later creations wait until it is fixed.</p>
+<p><b>Diffs.</b> Recreating a merged PR naively against <code>main</code> would show an empty diff, because main already contains the change. The engine instead pushes the PR's head and base commits to hidden refs, opens the MR between them, so GitLab stores the exact reviewed diff, then sets the real target branch, state, merger and dates. Line comments are placed on the same file, line and side as on GitHub, including multi-line ranges.</p>
+
+<h2 id="s3-5">3.5 The side channel</h2>
+<p>The GitLab API lets an admin create objects <i>as</i> another user and backdate most of them. A few fields are read-only in the API: MR creation date, merged and closed state with merger and time, approval dates, release author, and the MR number itself. For these, the engine runs a small Ruby agent inside GitLab's own Rails environment (<code>gitlab-rails runner</code>), reached by the configured command prefix (typically <code>ssh gitlab-host sudo</code>).</p>
+<ul>
+<li>One agent per engine process. Rails boots once, and operations then stream as JSON lines in batches.</li>
+<li>Every operation is idempotent and written to the audit log.</li>
+<li>Each agent has a unique token. On exit or timeout it is killed on the GitLab host (<code>pkill -9</code>), and it exits by itself after 15 minutes without input, so it cannot leak memory on the server.</li>
+<li>Without a side channel the engine still runs. Those few fields then fall back to "now", and the parity check reports them.</li>
+</ul>
+
+<h2 id="s3-6">3.6 The sync pipeline</h2>
+<figure>
+<svg viewBox="0 0 680 120" font-family="-apple-system,Helvetica Neue,Arial" font-size="9.4">
+  <g>
+    <path d="M4,14 h96 l12,30 l-12,30 h-96 z" fill="#24292f"/><text x="52" y="38" fill="#fff" text-anchor="middle" font-weight="650">1 Event</text><text x="52" y="53" fill="#c9d1d9" text-anchor="middle" font-size="8.4">webhook or</text><text x="52" y="64" fill="#c9d1d9" text-anchor="middle" font-size="8.4">schedule</text>
+    <path d="M112,14 h96 l12,30 l-12,30 h-96 l12,-30 z" fill="#1f5fae"/><text x="166" y="38" fill="#fff" text-anchor="middle" font-weight="650">2 Queue</text><text x="166" y="53" fill="#dbe7f6" text-anchor="middle" font-size="8.4">coalesced,</text><text x="166" y="64" fill="#dbe7f6" text-anchor="middle" font-size="8.4">per-repo order</text>
+    <path d="M220,14 h96 l12,30 l-12,30 h-96 l12,-30 z" fill="#2b6cc0"/><text x="274" y="38" fill="#fff" text-anchor="middle" font-weight="650">3 Git</text><text x="274" y="53" fill="#dbe7f6" text-anchor="middle" font-size="8.4">fetch → push</text><text x="274" y="64" fill="#dbe7f6" text-anchor="middle" font-size="8.4">all refs</text>
+    <path d="M328,14 h112 l12,30 l-12,30 h-112 l12,-30 z" fill="#3a7bd0"/><text x="390" y="38" fill="#fff" text-anchor="middle" font-weight="650">4 Metadata</text><text x="390" y="53" fill="#e3edf9" text-anchor="middle" font-size="8.4">labels, milestones,</text><text x="390" y="64" fill="#e3edf9" text-anchor="middle" font-size="8.4">issues/PRs in order</text>
+    <path d="M452,14 h104 l12,30 l-12,30 h-104 l12,-30 z" fill="#e2492f"/><text x="510" y="38" fill="#fff" text-anchor="middle" font-weight="650">5 Side channel</text><text x="510" y="53" fill="#ffe3dc" text-anchor="middle" font-size="8.4">dates, merge state,</text><text x="510" y="64" fill="#ffe3dc" text-anchor="middle" font-size="8.4">approvals (batch)</text>
+    <path d="M568,14 h108 v60 h-108 l12,-30 z" fill="#1a7f37"/><text x="626" y="38" fill="#fff" text-anchor="middle" font-weight="650">6 Verify</text><text x="626" y="53" fill="#dff3e4" text-anchor="middle" font-size="8.4">nightly parity</text><text x="626" y="64" fill="#dff3e4" text-anchor="middle" font-size="8.4">+ repair</text>
+  </g>
+  <text x="4" y="100" fill="#4a5366" font-size="9">Every step is idempotent: a pass that changes nothing on GitHub makes no write on GitLab, and an interrupted pass resumes where it stopped.</text>
+</svg>
+<figcaption><b>Figure 4.</b> One repository sync. Git always goes first, so commits referenced by PRs and releases already exist on GitLab.</figcaption>
+</figure>
+<ol>
+<li><b>Event.</b> A GitHub webhook (push, issues, pull_request, review, comment, release, member, repository…) or a scheduled pass creates a job.</li>
+<li><b>Queue.</b> Jobs are stored durably. Repeated events for one repo collapse into one job, and two workers never touch the same repo at once.</li>
+<li><b>Git.</b> The bare mirror is fetched (branches, tags, PR heads) and pushed ref-exactly to every target. Branch deletions use the API because the mirror's protection rule blocks deletion by push.</li>
+<li><b>Metadata.</b> Labels, milestones, then every issue and PR in number order with comments, reactions, reviews and line comments, then releases and assets. Each object is matched through the id map. If the map is lost, existing GitLab objects are <i>adopted</i> by number, name or author, time and body instead of being created twice.</li>
+<li><b>Side channel.</b> The fields from 3.5 are applied in one batch per repo.</li>
+<li><b>Verify.</b> A nightly field-by-field comparison in both directions. Drift raises an alert, and <code>--repair</code> re-queues the affected objects.</li>
+</ol>
+
+<h2 id="s3-7">3.7 Safety mechanisms</h2>
+<table class="compact">
+<tr><th style="width:28%">Risk</th><th>Mechanism</th></tr>
+<tr><td>GitHub org deleted, suspended or hacked</td><td><b>Circuit breaker.</b> If the owner returns 404, or more objects vanish in one pass than allowed (default: over 2% and over 1 item), all writes stop immediately with an alert. The mirrors keep the last good state.</td></tr>
+<tr><td>A repo or issue deleted on GitHub</td><td>The repo is <b>archived</b> on GitLab, never deleted. The issue is closed and labelled <code>deleted-on-github</code>.</td></tr>
+<tr><td>History rewritten (force-push)</td><td>The old tip is saved under <code>refs/ghmirror-backup/&lt;time&gt;/…</code> before the mirror follows.</td></tr>
+<tr><td>Slow or overloaded GitLab</td><td>Retries with back-off on 429/5xx. A create whose outcome is unknown (timeout, 502) is <b>looked up before it is resent</b>, so no duplicate issues, notes, MRs or accounts are made.</td></tr>
+<tr><td>Engine crash mid-way</td><td>Jobs have leases and are retried. All steps are idempotent. A crashed <code>promote</code> can always be undone by <code>demote</code>.</td></tr>
+<tr><td>Silent divergence</td><td>Nightly <code>verify</code>: refs, numbers, titles, authors, dates, states, merger, labels, note counts, milestones, releases, and objects that exist only on GitLab.</td></tr>
+<tr><td>Someone edits the mirror by hand</td><td>Mirror accounts are blocked and only the bot may push (protected <code>*</code> rule). Verify reports anything else.</td></tr>
+</table>

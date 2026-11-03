@@ -99,6 +99,7 @@ def test_signature():
     assert verify_signature("s3cret", body, sig)
     assert not verify_signature("s3cret", body, "sha256=00")
     assert not verify_signature("s3cret", body, None)
+    assert not verify_signature("", body, sig)   # no secret configured: refuse, never accept unsigned
 
 
 def test_routing(db):

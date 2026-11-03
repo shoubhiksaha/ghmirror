@@ -1,0 +1,67 @@
+
+ops@engine-host:ghmirror$ # Normal operation: GitHub is the source, this GitLab is a read-only mirror
+ops@engine-host:ghmirror$ ghmirror check
+github: shoubhiksaha (user), repos visible: 1
+2026-11-04 04:33:36,982 INFO ghmirror.sidechannel [cloud] side-channel agent ready
+target cloud: GitLab 19.5.3, group acme-mirror (id 2), bot root, mode mirror, side channel ok (Rails 19.5.3), token expires 2027-10-29 (359 days)
+ops@engine-host:ghmirror$ ghmirror verify
+{"checked": {"repos": 1, "issues": 2, "mrs": 5, "pending": 0}, "drift_count": 0}
+ops@engine-host:ghmirror$ # GitHub is lost. Fail over: make GitLab the primary code host
+ops@engine-host:ghmirror$ time ghmirror promote --primary cloud --yes
+2026-11-04 04:34:04,316 INFO ghmirror.promote source adapter stopped
+2026-11-04 04:34:11,540 CRITICAL ghmirror ALERT critical: PROMOTED cloud to primary; 1 accounts activated, 0 push mirrors to secondaries
+{"primary": "cloud", "state": "done", "users": [2], "mirrors": [], "rpo": {"shoubhiksaha/ghmirror-demo-source": "2026-11-03T23:01:42Z"}, "failures": []}
+
+real	0m7.827s
+user	0m0.139s
+sys	0m0.071s
+ops@engine-host:ghmirror$ # A developer carries on, on GitLab: same repository, same history, same PR/MR numbers
+ops@engine-host:ghmirror$ git clone -q http://localhost:8931/acme-mirror/ghmirror-demo-source.git && cd ghmirror-demo-source
+ops@engine-host:ghmirror-demo-source$ git log --oneline -5
+8acaad3 (HEAD -> main, origin/main, origin/HEAD) RPO probe 2
+d38c60e RPO probe 1
+8c66c42 (tag: v1.0) feat-rebase: add rebase.txt
+0d3eb4b Squash PR (#4)
+6ce082f Merge pull request #3 from shoubhiksaha/feat-merge
+ops@engine-host:ghmirror-demo-source$ git switch -q -c hotfix-login && echo 'retry login once' >> app.txt && git commit -qam 'Fix login retry'
+ops@engine-host:ghmirror-demo-source$ git push -q origin hotfix-login
+remote: 
+remote: ========================================================================
+remote: 
+remote:     GitHub is unavailable: this GitLab is now our primary code host.
+remote: 
+remote: ========================================================================
+remote: 
+remote: 
+remote: To create a merge request for hotfix-login, visit:
+remote:   http://localhost:8931/acme-mirror/ghmirror-demo-source/-/merge_requests/new?merge_request%5Bsource_branch%5D=hotfix-login
+remote: 
+ops@engine-host:ghmirror-demo-source$ gl-mr create hotfix-login 'Fix login retry'
+!8 opened: Fix login retry  (author shoubhiksaha)
+http://localhost:8931/acme-mirror/ghmirror-demo-source/-/merge_requests/8
+ops@engine-host:ghmirror-demo-source$ gl-mr merge hotfix-login
+!8 merged by shoubhiksaha at 2026-11-03T23:05:03.713Z
+ops@engine-host:ghmirror-demo-source$ gl-mr list
+!8	merged	Fix login retry
+!7	opened	Open PR
+!6	closed	Closed PR
+!5	merged	Rebase PR
+!4	merged	Squash PR
+!3	merged	Merge-commit PR
+ops@engine-host:ghmirror-demo-source$ 
+
+ops@engine-host:ghmirror-demo-source$ # GitHub is back: end the drill and return GitLab to mirror mode
+ops@engine-host:ghmirror-demo-source$ cd .. && time ghmirror demote
+2026-11-04 04:35:30,362 WARNING ghmirror ALERT warning: DEMOTED cloud: back to MIRROR mode, GitHub source active
+demoted: MIRROR mode restored
+
+real	0m1.228s
+user	0m0.136s
+sys	0m0.058s
+ops@engine-host:ghmirror$ # Work done on GitLab during the drill is reported by the parity check, never silently lost
+ops@engine-host:ghmirror$ ghmirror verify --format markdown | grep -E '^[|] (Result|cloud)'
+2026-11-04 04:35:58,819 ERROR ghmirror ALERT error: parity check found 2 differences, e.g. [{'target': 'cloud', 'repo': 'shoubhiksaha/ghmirror-demo-source', 'kind': 'ref', 'id': 'refs/heads/main', 'field': 'sha', 'github': '8acaad370aafa1b1bdfa23b024c9e93f96751ba3', 'gitlab': 'd2c7886079355a2ad65b198b9b7febb354f32e83'}, {'target': 'cloud', 'repo': 'shoubhiksaha/ghmirror-demo-source', 'kind': 'mr', 'id': 8, 'field': 'exists', 'github': False, 'gitlab': True}]
+| Result | **DRIFT**: 2 difference(s) |
+| cloud | `shoubhiksaha/ghmirror-demo-source` | `refs/heads/main` | sha (branch or tag points at a different commit) | `8acaad370aafa1b1bdfa23b024c9e93f96751ba3` | `d2c7886079355a2ad65b198b9b7febb354f32e83` |
+| cloud | `shoubhiksaha/ghmirror-demo-source` | PR #8 / !8 | exists (present on one side only) | `absent` | `present` |
+ops@engine-host:ghmirror$ 

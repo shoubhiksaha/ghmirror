@@ -1,0 +1,198 @@
+<!-- ============================== 4 ============================== -->
+<h1 class="chapter" id="s4"><span class="num">4</span>Operating modes and failover</h1>
+<p>Each GitLab target is always in one of three modes. The engine stores the mode, and it changes only through the commands shown.</p>
+<figure>
+<svg viewBox="0 0 680 190" font-family="-apple-system,Helvetica Neue,Arial" font-size="10">
+  <defs><marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#4a5366"/></marker></defs>
+  <rect x="20" y="62" width="170" height="70" rx="12" fill="#e8f0fa" stroke="#1f5fae" stroke-width="1.6"/>
+  <text x="105" y="90" text-anchor="middle" font-weight="700" font-size="13" fill="#1f5fae">MIRROR</text><text x="105" y="108" text-anchor="middle" fill="#4a5366">read-only copy of GitHub</text><text x="105" y="122" text-anchor="middle" fill="#4a5366">(normal operation)</text>
+  <rect x="490" y="62" width="170" height="70" rx="12" fill="#e7f4ea" stroke="#1a7f37" stroke-width="1.6"/>
+  <text x="575" y="90" text-anchor="middle" font-weight="700" font-size="13" fill="#1a7f37">PRIMARY</text><text x="575" y="108" text-anchor="middle" fill="#4a5366">team works here;</text><text x="575" y="122" text-anchor="middle" fill="#4a5366">other target = secondary</text>
+  <rect x="255" y="136" width="170" height="48" rx="12" fill="#fdf3dc" stroke="#c4900f" stroke-width="1.6"/>
+  <text x="340" y="157" text-anchor="middle" font-weight="700" font-size="12" fill="#8a5a00">HALTED</text><text x="340" y="173" text-anchor="middle" fill="#4a5366">no writes; last good state kept</text>
+  <path d="M192,82 C300,40 380,40 488,82" fill="none" stroke="#4a5366" stroke-width="1.6" marker-end="url(#a4)"/><text x="340" y="38" text-anchor="middle" font-weight="650">ghmirror promote --primary &lt;target&gt;</text>
+  <path d="M488,112 C400,92 280,92 192,112" fill="none" stroke="#4a5366" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#a4)"/><text x="340" y="88" text-anchor="middle" fill="#4a5366">ghmirror demote (drills only)</text>
+  <path d="M120,134 C140,168 200,170 252,162" fill="none" stroke="#c4900f" stroke-width="1.4" marker-end="url(#a4)"/><text x="148" y="178" text-anchor="middle" fill="#8a5a00" font-size="9">guard trips</text>
+  <path d="M255,148 C210,150 175,146 160,136" fill="none" stroke="#c4900f" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#a4)"/><text x="205" y="142" text-anchor="middle" fill="#8a5a00" font-size="9"></text>
+  <path d="M428,160 C470,160 520,152 552,136" fill="none" stroke="#c4900f" stroke-width="1.4" marker-end="url(#a4)"/><text x="512" y="172" text-anchor="middle" fill="#8a5a00" font-size="9">promote</text>
+  <text x="222" y="128" text-anchor="middle" fill="#8a5a00" font-size="9">guard reset</text>
+</svg>
+<figcaption><b>Figure 5.</b> Modes. A guard halt is never cleared automatically: a person decides between <code>guard reset</code> (false alarm) and <code>promote</code> (GitHub really is gone).</figcaption>
+</figure>
+
+<h2>4.1 What <code>promote</code> does</h2>
+<ol class="steps">
+<li><b>Records the promotion</b> before changing anything, and updates the record after every step. A crash part-way can always be undone.</li>
+<li><b>Stops the GitHub source</b>, so the engine writes nothing more from GitHub.</li>
+<li><b>Restores real branch protection</b>, replacing the bot-only rule with the rules archived from GitHub (required reviews, who may push, force-push).</li>
+<li><b>Enables CI/CD</b> on every project (it is off while mirroring).</li>
+<li><b>Turns mirror accounts into real ones.</b> Humans are unblocked and get their company email. Bots and former members stay blocked. The temporary Owner role is removed, and real roles are applied: org admins become Owners, members get the base permission, teams become subgroups with project shares, and collaborators become project members.</li>
+<li><b>Posts a banner</b> on every page ("GitHub is unavailable: this GitLab is now our primary code host…").</li>
+<li><b>Feeds the other GitLab</b> with push mirrors from every project on the primary. The engine allows the secondary's host through GitLab's outbound-request protection when it is on a private network.</li>
+<li><b>Prints the RPO</b>: for every repository, the time of the last successful sync from GitHub.</li>
+</ol>
+<p>A step that fails for one item (one project, one account, one mirror) is listed under <code>failures</code> and alerted, and the rest of the failover continues. The command then exits with code 1. <code>demote</code> reverses exactly what the record lists. It exists for drills and for returning to GitHub if it comes back.</p>
+
+<h2>4.2 After failover</h2>
+<figure>
+<svg viewBox="0 0 680 150" font-family="-apple-system,Helvetica Neue,Arial" font-size="9.8">
+  <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#4a5366"/></marker></defs>
+  <rect x="6" y="18" width="130" height="70" rx="9" fill="#f6f8fa" stroke="#aab4c3" stroke-dasharray="5 4"/><text x="71" y="48" text-anchor="middle" fill="#8a94a6" font-weight="650" font-size="11">GitHub</text><text x="71" y="66" text-anchor="middle" fill="#8a94a6">gone / not used</text>
+  <rect x="6" y="100" width="130" height="44" rx="9" fill="#fff" stroke="#1f5fae"/><text x="71" y="119" text-anchor="middle" font-weight="650">Developers</text><text x="71" y="134" text-anchor="middle" fill="#4a5366" font-size="9">git, browser, SSO</text>
+  <line x1="138" y1="122" x2="246" y2="80" stroke="#4a5366" stroke-width="1.6" marker-end="url(#a5)"/><text x="186" y="118" text-anchor="middle" fill="#4a5366" font-size="9">push, MRs</text>
+  <rect x="248" y="22" width="190" height="96" rx="10" fill="#e7f4ea" stroke="#1a7f37" stroke-width="1.6"/><text x="343" y="48" text-anchor="middle" font-weight="700" font-size="11.5" fill="#1a7f37">GitLab · cloud (PRIMARY)</text><text x="343" y="68" text-anchor="middle" fill="#4a5366">real accounts, real protections,</text><text x="343" y="84" text-anchor="middle" fill="#4a5366">CI on, banner</text><text x="343" y="104" text-anchor="middle" fill="#4a5366" font-size="9">old GitHub links → redirector</text>
+  <line x1="440" y1="70" x2="520" y2="70" stroke="#4a5366" stroke-width="1.6" marker-end="url(#a5)"/><text x="480" y="62" text-anchor="middle" fill="#4a5366" font-size="9">push mirror</text><text x="480" y="86" text-anchor="middle" fill="#4a5366" font-size="8.6">≤ 5 min lag</text>
+  <rect x="522" y="22" width="152" height="96" rx="10" fill="#fff8f5" stroke="#e2492f"/><text x="598" y="48" text-anchor="middle" font-weight="700" font-size="11.5" fill="#b2371f">GitLab · offline</text><text x="598" y="68" text-anchor="middle" fill="#4a5366">SECONDARY:</text><text x="598" y="84" text-anchor="middle" fill="#4a5366">receives all git refs</text><text x="598" y="100" text-anchor="middle" fill="#4a5366">from the primary</text>
+</svg>
+<figcaption><b>Figure 6.</b> Topology after <code>promote --primary cloud</code>. Either target can be promoted. The other becomes the secondary.</figcaption>
+</figure>
+<div class="callout warn"><b class="t">Two things to know</b>
+1. GitLab runs a push mirror that covers all branches at most once every 5 minutes, so the secondary trails the primary by up to 5 minutes.<br>
+2. After failover only <b>git data</b> flows to the secondary. Issues and MRs created on the new primary reach the secondary only through GitLab's project export/import. A GitLab-to-GitLab metadata adapter is not built yet (section 9).</div>
+
+<h2>4.3 Recovery objectives</h2>
+<table class="compact">
+<tr><th style="width:26%">Objective</th><th>Value</th></tr>
+<tr><td>RPO (data loss)</td><td>Normally seconds: webhooks trigger syncs immediately. The worst case is the scheduler interval for a missed webhook (metadata 1 h, git 6 h by default). <code>promote</code> prints the exact value per repository.</td></tr>
+<tr><td>RTO (time to work again)</td><td><code>promote</code> takes minutes. The rest is communication: the banner, the remote URL change (a one-line git command or an MDM-pushed <code>insteadOf</code> rule), and SSO login.</td></tr>
+</table>
+
+<!-- ============================== 5 ============================== -->
+<h1 class="chapter" id="s5"><span class="num">5</span>Setup guide</h1>
+<p class="lead">Setup is one command on the engine host. Along the way it gives you one command to run on each GitLab host and, if you choose a GitHub App, two clicks on GitHub. Nothing is configured by hand in GitLab or GitHub, and no IDs, keys or fingerprints are copied around.</p>
+<table class="compact">
+<tr><th style="width:5%">#</th><th style="width:33%">Step</th><th>Where</th><th>Who</th><th style="width:17%">Time (measured)</th></tr>
+<tr><td>1</td><td>GitLab on each side (skip if you have one)</td><td>each GitLab host</td><td>sysadmin</td><td>≈ 15 min</td></tr>
+<tr><td>2</td><td><code>./setup.sh</code></td><td>engine host</td><td>anyone with Docker</td><td>≈ 5 min</td></tr>
+<tr><td>3</td><td>the <code>prepare-host.sh</code> line that setup prints</td><td>each GitLab host, over SSH</td><td>someone who may <code>sudo</code> there</td><td>≈ 4 min each</td></tr>
+<tr><td>4</td><td>“Create GitHub App” and “Install”</td><td>browser</td><td>a GitHub org owner</td><td>1 min</td></tr>
+<tr><td>—</td><td>first full copy</td><td colspan="2">runs by itself in the background</td><td>≈ 1 API call per object</td></tr>
+</table>
+
+<h2>5.1 What you need</h2>
+<table class="compact">
+<tr><th style="width:24%">Item</th><th>Requirement</th></tr>
+<tr><td>GitLab · cloud</td><td>Self-managed GitLab CE or EE (Omnibus package or the official Docker image) on a cloud VM: <b>4 vCPU, 8 GB RAM minimum</b>, plus about 1 GB for the side-channel agent. Disk: 2–3× the size of all repositories. GitLab.com SaaS is not suitable, because it cannot impersonate users or backdate content.</td></tr>
+<tr><td>GitLab · offline</td><td>The same, on company hardware. Each instance needs its own host: two GitLabs on one 8 GB machine overload (tested).</td></tr>
+<tr><td>Engine host</td><td>Any Linux host with Docker and Compose v2: 2 vCPU, 4 GB RAM, disk about 2× the repositories (L1 + L2). Usually placed next to the offline GitLab. Needs outbound HTTPS to GitHub and the cloud GitLab, and SSH to both GitLab hosts. Inbound HTTPS for webhooks is optional (§5.5).</td></tr>
+<tr><td>GitHub</td><td>An organization owner for two clicks (create and install a read-only GitHub App), or a classic personal access token with <code>repo, read:org</code>.</td></tr>
+<tr><td>Identity (recommended)</td><td>Company SSO (OIDC or SAML) usable by GitLab, so the first login after failover links each person to their account by email.</td></tr>
+</table>
+
+<h2>5.2 Step 1 — GitLab on each side</h2>
+<p>If a GitLab is already running, skip this step. Otherwise <code>deploy/gitlab/docker-compose.yml</code> is a ready template, pinned to the tested version 19.5.3. Set <code>external_url</code> and put the root password in <code>root_password.txt</code>:</p>
+<pre>cd deploy/gitlab &amp;&amp; echo 'a-long-root-password' &gt; root_password.txt
+docker compose up -d                 <span class="c"># first boot takes 5–10 minutes</span></pre>
+<ul>
+<li>Git over SSH is published on port <b>2222</b>, so the host's own SSH keeps port 22. The engine's side channel uses the host's SSH.</li>
+<li>Uncomment the three SSO lines (<code>omniauth_allow_single_sign_on</code>, <code>omniauth_auto_link_user</code>, <code>omniauth_block_auto_created_users = false</code>) once your identity provider is configured. Failover then needs no account work.</li>
+</ul>
+
+<h2>5.3 Step 2 — Run setup on the engine host</h2>
+<pre>git clone &lt;this repository&gt; ghmirror &amp;&amp; cd ghmirror/deploy/compose
+./setup.sh</pre>
+<p><code>setup.sh</code> needs only Docker. It builds the engine image and asks a few questions. Behind the scenes it creates an SSH key for the side channel, and then it checks every connection and starts the service. A real run, with the long values shortened:</p>
+<div class="term long"><div class="bar"><i></i><i></i><i></i>&nbsp; engine-host: ~/ghmirror/deploy/compose</div><div class="body mono"><span class="p">$</span> ./setup.sh
+<b>== 1/4 Building the engine image</b>
+<b>== 2/4 Configuration</b>
+GitHub organization (or user) to mirror: <span class="b">acme</span>
+Public HTTPS URL that GitHub can reach for webhooks (Enter = none, poll every 15 min): <span class="b">https://mirror.acme.com</span>
+GitHub access: 'app' creates a read-only GitHub App for you (recommended, 2 clicks);
+               'token' uses a classic personal access token (repo, read:org; admin:org_hook for webhooks).
+Which (APP/token): <span class="b">⏎</span>
+  1. Open http://localhost:8765/ in a browser logged in to GitHub as an owner of acme.
+  2. Click 'Create GitHub App'. ...
+  App ghmirror-acme created (id 1234567).
+  3. Install it on acme (all repositories): https://github.com/apps/ghmirror-acme/installations/new
+  Installed (installation id 89012345).
+GitLab targets. Prepare each GitLab host once, from here (with an account that may sudo there):
+  ssh &lt;admin&gt;@&lt;gitlab-host&gt; sudo bash -s -- --pubkey "'ssh-ed25519 AAAAC3Nz… ghmirror-engine'" &lt; ~/ghmirror/deploy/compose/prepare-host.sh
+Paste the ghmirror-target line for 'cloud' (or 'skip'): <span class="b">ghmirror-target:eyJ1cmwiOiAiaHR0cHM6Ly9…</span>
+  cloud: https://gitlab-cloud.acme.com  token ok, admin
+Paste the ghmirror-target line for 'offline' (or 'skip'): <span class="b">ghmirror-target:eyJ1cmwiOiAiaHR0cHM6Ly9…</span>
+  offline: https://gitlab.lan.acme.com  token ok, admin
+Slack-compatible alert webhook URL (Enter = none): <span class="b">https://hooks.slack.com/services/…</span>
+Wrote ghmirror.yaml, .env, identities.yaml, secrets/.
+<b>== 3/4 Checking GitHub, GitLab and the side channels</b>
+github: acme (org), repos visible: 214
+target cloud: GitLab 19.5.3, group acme (id 2), bot github-mirror, mode mirror, side channel <span class="ok">ok (Rails 19.5.3)</span>
+target offline: GitLab 19.5.3, group acme (id 2), bot github-mirror, mode mirror, side channel <span class="ok">ok (Rails 19.5.3)</span>
+<b>== 4/4 Starting the service and queueing the first full copy</b>
+<span class="ok">ghmirror is running.</span> The first copy proceeds in the background.</div></div>
+<p class="small">The prompts, messages and order are those of the tested build. The organization name, URLs and counts are illustrative. The live test mirrored a personal account (§8.3).</p>
+
+<h2>5.4 Step 3 — Prepare each GitLab host</h2>
+<p>When setup reaches “GitLab targets”, open a second terminal on the engine host and run the printed line once per GitLab host, replacing <code>&lt;admin&gt;@&lt;gitlab-host&gt;</code>. The script travels over your own SSH session, so nothing needs to be installed first. Then paste the last line it prints into setup.</p>
+<div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp; engine-host: second terminal</div><div class="body mono"><span class="p">$</span> ssh admin@gitlab.lan.acme.com sudo bash -s -- --pubkey "'ssh-ed25519 AAAAC3Nz… ghmirror-engine'" &lt; prepare-host.sh
+[ghmirror] GitLab: omnibus
+[ghmirror] created Unix user ghmirror
+[ghmirror] authorized the engine's SSH key
+[ghmirror] sudo rule: /opt/gitlab/bin/gitlab-rails, /usr/bin/gitlab-rails, /bin/gitlab-rails, /usr/bin/sh, /bin/sh, /usr/bin/pkill, /bin/pkill
+[ghmirror] creating the bot account and token (Rails boot, please wait)...
+[ghmirror] bot github-mirror ready on GitLab 19.5.3 at https://gitlab.lan.acme.com (token expires in 365 days)
+
+=== GitLab host ready. Paste this line into 'ghmirror init' (it contains the bot's token): ===
+<span class="w">ghmirror-target:eyJ1cmwiOiAiaHR0cHM6Ly9naXRsYWIubGFuLmFjbWUuY29tIiwgInRva2VuIjog…</span></div></div>
+<p>The script is idempotent, so running it again is harmless and issues a fresh token. It does four things:</p>
+<ol class="steps">
+<li><b>Side-channel login.</b> It creates a Unix user <code>ghmirror</code> that can log in only with the engine's key, without port forwarding or a terminal.</li>
+<li><b>Exact sudo rule.</b> <code>/etc/sudoers.d/ghmirror</code> allows <code>gitlab-rails</code>, <code>sh</code> and <code>pkill</code> without a password and nothing else. Every path sudo might resolve is listed. For a Docker-hosted GitLab the rule is <code>docker exec -i &lt;container&gt; *</code> instead, and the container is found automatically.</li>
+<li><b>Mirror bot.</b> It creates the GitLab administrator <code>github-mirror</code> and a token with the scopes <code>api, sudo, admin_mode, read_api, write_repository</code>.</li>
+<li><b>One line for setup.</b> It prints the URL, token, SSH login and the host's SSH key. The engine therefore trusts exactly this host, and nobody has to confirm a fingerprint. The line stays under 1024 characters, the most a terminal accepts in one paste.</li>
+</ol>
+<table class="compact">
+<tr><th style="width:26%">Option</th><th>Use when</th></tr>
+<tr><td><code>--container NAME</code></td><td>More than one GitLab container runs on the host.</td></tr>
+<tr><td><code>--ssh-host HOST</code></td><td>The engine reaches the host under another name or IP than <code>hostname -f</code>.</td></tr>
+<tr><td><code>--ssh-port PORT</code></td><td>The host's own sshd is not on port 22.</td></tr>
+<tr><td><code>--bot NAME</code>, <code>--token-days N</code></td><td>Another bot username, or a token lifetime other than 365 days. Rotate by re-running the script and setup before it expires.</td></tr>
+</table>
+<div class="callout warn"><b class="t">Security note</b><code>gitlab-rails runner</code> can run any code with GitLab's privileges, and <code>sudo sh</code> is a root shell. The side channel is therefore as powerful as root on the GitLab host. Treat the engine host and <code>secrets/id_ed25519</code> like GitLab's root account: a dedicated host, restricted logins, and the key used for nothing else. If that is not acceptable, remove <code>side_channel</code> from <code>ghmirror.yaml</code>. The engine still works, and only the fields in §3.5 lose their original values.</div>
+
+<h2>5.5 Step 4 — GitHub access and webhooks</h2>
+<p><b>GitHub App (recommended).</b> Setup builds the App definition for you: read-only access to contents, metadata, issues, pull requests, discussions and administration, members on the organization, and the events the engine handles. It then sends your browser to GitHub with everything filled in. Click <i>Create GitHub App</i>, then <i>Install</i>. Setup receives the App's ID, private key and webhook secret directly from GitHub, and detects the installation by itself.</p>
+<ul>
+<li><b>Engine on a remote server?</b> Run <code>ssh -L 8765:localhost:8765 &lt;engine-host&gt;</code> from your laptop first, so the browser can reach setup. If the page GitHub returns to does not load, copy its address from the browser into setup instead.</li>
+<li><b>Token instead:</b> answer <code>token</code> and paste a classic PAT (<code>repo, read:org</code>; add <code>admin:org_hook</code> and setup also creates the organization webhook). For a personal account, a token is the simplest choice.</li>
+</ul>
+<p><b>Webhooks</b> make changes appear within seconds. GitHub must reach <code>https://&lt;your-host&gt;/webhook</code>, so route that path to <code>127.0.0.1:8080</code> on the engine host with your reverse proxy or a tunnel. With no public URL, answer Enter: the engine then polls every 15 minutes and nothing else changes.</p>
+
+<h2>5.6 What setup leaves behind</h2>
+<table class="compact">
+<tr><th style="width:26%">File (in <code>deploy/compose/</code>)</th><th>Content</th></tr>
+<tr><td><code>ghmirror.yaml</code></td><td>The configuration, with no secrets in it (they are <code>${VAR}</code> references). Edit it freely, for example <code>source.repos.include/exclude</code> or <code>guard</code>. Appendix B lists every key.</td></tr>
+<tr><td><code>.env</code> (mode 600)</td><td>Tokens, the App ID, the webhook secret, a random database password, the alert URL.</td></tr>
+<tr><td><code>identities.yaml</code></td><td>GitHub login → company email. Setup lists every organization member as a commented line, so you only fill in addresses. Needed before a failover, not before mirroring.</td></tr>
+<tr><td><code>secrets/</code></td><td><code>id_ed25519</code> (side-channel key), <code>known_hosts</code> (the GitLab hosts' keys), <code>github-app.pem</code>. The container reads them as the unprivileged user, whoever owns them on the host.</td></tr>
+<tr><td><code>prepare-host.sh</code></td><td>The host script from step 3, kept for adding or re-preparing a GitLab later.</td></tr>
+</table>
+<p><b>Re-running is safe.</b> <code>./setup.sh</code> keeps existing secrets and targets, and asks only what is missing. Run it again to add a GitLab, rotate a token or switch from token to App. <b>Unattended</b> installs answer every question with flags:</p>
+<pre>GITHUB_TOKEN=ghp_… ./setup.sh --yes --owner acme --github-auth token \
+    --webhook-url https://mirror.acme.com --alert-webhook https://hooks.slack.com/services/… \
+    --target "cloud=ghmirror-target:eyJ…" --target "offline=ghmirror-target:eyJ…"</pre>
+
+<h2>5.7 The first copy</h2>
+<p>Setup queues a full pass for every repository, and the service works through it: git first, then issues, pull requests and reviews, then members. It is <b>idempotent and resumable</b>. A restart or a crash continues where it stopped, and nothing is duplicated. Until a repository's first copy is done, the parity report lists it as <code>pending</code> rather than as drift, so a new install does not raise false alarms.</p>
+<pre>docker compose run --rm engine status      <span class="c"># queue: pending / running / done</span>
+docker compose logs -f engine              <span class="c"># live progress</span>
+docker compose run --rm engine verify      <span class="c"># "drift_count": 0 when the copy is complete</span></pre>
+<p>Expect about one GitHub API call per object. A GitHub App installation gets at least 5,000 calls per hour, more for large organizations and on Enterprise Cloud. For very large organizations, narrow <code>source.repos.include</code> first and widen it in steps.</p>
+
+<h2>5.8 Steady state</h2>
+<p>The <code>engine</code> service runs <code>ghmirror run</code>: webhook receiver, workers and scheduler in one process. No cron is needed. Default schedule (without webhooks, setup sets <code>git</code> and <code>meta</code> to 900) (seconds, configurable under <code>schedule:</code>):</p>
+<table class="compact">
+<tr><th>Pass</th><th>repos</th><th>meta</th><th>git</th><th>org</th><th>full</th><th>verify</th><th>migration</th></tr>
+<tr><td>Interval</td><td>3600</td><td>3600</td><td>21600</td><td>21600</td><td>86400</td><td>86400</td><td>604800</td></tr>
+</table>
+
+<h2>5.9 Monitoring and alerts</h2>
+<table class="compact">
+<tr><th style="width:30%">Endpoint / metric</th><th>Alert when</th></tr>
+<tr><td><code>GET /healthz</code></td><td>Not 200 (liveness).</td></tr>
+<tr><td><code>ghmirror_meta_age_seconds</code></td><td>Greater than 2 × <code>schedule.meta</code> (sync is lagging).</td></tr>
+<tr><td><code>ghmirror_jobs{status="dead"}</code></td><td>Greater than 0 (a job failed 5 times).</td></tr>
+<tr><td><code>ghmirror_drift_count</code></td><td>Greater than 0 after the nightly verify.</td></tr>
+<tr><td><code>ghmirror_halted</code></td><td>Equals 1: the deletion guard stopped all writes. <b>Page a human.</b></td></tr>
+<tr><td><code>ghmirror_alerts_total</code></td><td>Trend. Every alert is also posted to <code>alerts.webhook_url</code>.</td></tr>
+</table>
+<p><code>ghmirror status</code> (or <code>GET /status</code>) prints the mode, queue, last parity report and recent alerts.</p>

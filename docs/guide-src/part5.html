@@ -1,0 +1,148 @@
+
+<h1 class="chapter" id="s7"><span class="num">7</span>Operations runbook</h1>
+<p class="lead">In steady state the mirror needs no attention. This chapter covers the few situations that need a person. Run every command from <code>deploy/compose/</code> on the engine host, as <code>docker compose run --rm engine &lt;command&gt;</code>.</p>
+
+<h2>7.1 Routine checks</h2>
+<table class="compact">
+<tr><th style="width:22%">When</th><th>Check</th><th style="width:34%">Expected</th></tr>
+<tr><td>Continuously</td><td>Alerts in the alert channel; the <code>/metrics</code> signals in §5.9.</td><td>No <code>error</code> alerts, <code>ghmirror_halted 0</code>.</td></tr>
+<tr><td>Daily (automatic)</td><td>The nightly <code>verify</code> parity report.</td><td><code>ghmirror_drift_count 0</code>.</td></tr>
+<tr><td>Weekly</td><td><code>status</code>: queue, dead jobs, last parity report, recent alerts.</td><td>No <code>dead</code> jobs.</td></tr>
+<tr><td>Monthly</td><td>Failover drill (§7.4).</td><td>Drill passes, then 0 drift after demote.</td></tr>
+<tr><td>Before expiry</td><td>GitLab bot tokens expire after 365 days. Re-run <code>prepare-host.sh</code> and paste the new line into <code>./setup.sh</code>.</td><td><code>check</code> ok.</td></tr>
+</table>
+
+<h2>7.2 When the deletion guard halts</h2>
+<p>The engine stops <b>all</b> writes when the GitHub owner returns 404, or when more repositories or issues vanish in one pass than <code>guard.max_disappear_*</code> allows. A single deleted repository does not halt anything: it is archived on GitLab (Figure 19). On <code>ghmirror_halted 1</code>:</p>
+<ol class="steps">
+<li>Look at GitHub: the organization page, <a>githubstatus.com</a>, the App installation.</li>
+<li><b>GitHub is fine</b>, for example you moved many repositories on purpose: run <code>guard reset</code>. Mirroring resumes and catches up.</li>
+<li><b>GitHub is gone or compromised:</b> do <b>not</b> reset. The GitLab copies are frozen in their last good state. Go to §7.3.</li>
+</ol>
+
+<h2>7.3 Failover checklist (GitHub lost)</h2>
+<ol class="steps">
+<li><b>Decide the primary.</b> Usually <code>cloud</code>, which is reachable from everywhere. Use <code>offline</code> if the cloud is affected too.</li>
+<li><b>Promote:</b> <code>promote --primary cloud</code>. Type <code>promote</code> to confirm. It prints the state, the users activated, the mirrors and the RPO (last successful sync per repository). Exit code 1 means some steps failed, and each failure is listed. Fix the cause, then run <code>demote</code> and <code>promote</code> again.</li>
+<li><b>Redirect old links:</b> <code>docker compose --profile failover up -d redirector</code>, and point bookmarks and documentation links (or a vanity DNS name) at it. Old <code>github.com/&lt;org&gt;/&lt;repo&gt;/pull/7</code> links then land on <code>!7</code>.</li>
+<li><b>Tell developers</b> to run one command per clone, or push <code>url.&lt;new&gt;.insteadOf &lt;old&gt;</code> through device management:
+<pre>git remote set-url origin git@gitlab.acme.com:acme/&lt;repo&gt;.git     <span class="c"># same SSH keys work</span></pre></li>
+<li><b>Sign-in:</b> with SSO, the first login links each person to their account automatically (§4). Without SSO, an administrator sends password resets from Admin › Users.</li>
+<li><b>CI:</b> CI/CD is enabled on promote. Re-create secrets as GitLab CI variables; GitHub never exposes them.</li>
+</ol>
+<div class="callout"><b class="t">The secondary trails by up to 5 minutes</b>After promote, the other GitLab is updated by push mirroring, which GitLab runs at most once every 5 minutes per project. Only git data flows to it. Issues and MRs created after failover exist on the primary only.</div>
+
+<h2>7.4 Monthly drill</h2>
+<p>Practise on a snapshot of the offline instance or on a scratch GitLab, never on the live cloud mirror: <code>promote</code> → two engineers clone, branch, open an MR, approve, merge and tag → <code>demote</code> → delete the merge requests and issues made during the drill → <code>sync --full</code> → <code>verify</code> must report 0 drift. Steps 11–13 of <code>e2e/run_e2e.sh</code> automate exactly this (§8.1); chapter 14 shows a recorded drill.</p>
+<p>The cleanup matters. Right after <code>demote</code>, <code>verify</code> reports the drill's work: branches that moved and merge requests that exist only on GitLab. ghmirror never deletes them itself. The next sync resets the branches to GitHub, and any commit that exists only on GitLab is first saved in the engine's git mirror under <code>refs/ghmirror-backup/&lt;time&gt;/target/</code>. Merge requests and issues stay until a person deletes them. A drill MR left in place (say !8) also takes the number that GitHub's next PR #8 needs. This is why drills belong on a snapshot.</p>
+
+<h2>7.5 Rebuilding a lost GitLab</h2>
+<table class="compact">
+<tr><th style="width:30%">Situation</th><th>Procedure</th></tr>
+<tr><td>GitHub still available</td><td>New empty GitLab → <code>prepare-host.sh</code> → <code>./setup.sh</code> (paste its line). The first copy rebuilds it exactly, like the original seed.</td></tr>
+<tr><td>GitHub gone, the other GitLab alive</td><td>Move the group from the surviving GitLab with GitLab's own group and project export/import, or Direct Transfer. Issues, MRs, notes and history are kept.</td></tr>
+<tr><td>Both GitLabs gone</td><td>Code: <code>git push --mirror</code> from the bare mirrors in the <code>mirrors</code> volume. Metadata: preserved as JSON in the <code>archive</code> volume, plus GitHub's own migration archives if a <code>migration_token</code> is set. Replaying JSON into GitLab is not automated (§9).</td></tr>
+</table>
+<p>Back up the engine host's <code>mirrors</code> and <code>archive</code> volumes with your normal backup tool. With them, the code and the full record survive even if every hosted copy is lost.</p>
+
+<h2 style="break-before:page">7.6 Everyday changes</h2>
+<table class="compact">
+<tr><th style="width:32%">Task</th><th>How</th></tr>
+<tr><td>Mirror more or fewer repositories</td><td>Edit <code>source.repos.include / exclude</code> in <code>ghmirror.yaml</code>, then <code>docker compose up -d engine</code>. Repositories that leave the selection are kept on GitLab.</td></tr>
+<tr><td>Add a GitLab target</td><td><code>prepare-host.sh</code> on the new host, then <code>./setup.sh --target-names cloud offline dr</code> and paste the new line. Existing targets are kept.</td></tr>
+<tr><td>Add or correct a person's email</td><td>Edit <code>identities.yaml</code> and restart the engine. New accounts get the address when they are created, and promote applies the file to every account.</td></tr>
+<tr><td>Upgrade GitLab</td><td>Upgrade the offline instance first, then run <code>check</code> and <code>verify</code>. The side channel uses GitLab internals, so §8 lists the version tested (19.5.3).</td></tr>
+<tr><td>Upgrade the engine</td><td><code>git pull &amp;&amp; ./setup.sh</code>. It rebuilds the image, offers your previous answers as defaults (<code>--yes</code> keeps them all) and restarts the service on the new image.</td></tr>
+</table>
+
+<h1 class="chapter" id="s8"><span class="num">8</span>Verification and test results</h1>
+<p class="lead">Three layers of tests: an end-to-end run against a real GitHub account and two real GitLab instances, a from-scratch test of the setup path, and unit tests.</p>
+
+<h2>8.1 End-to-end test</h2>
+<p><code>e2e/run_e2e.sh</code> builds a fixture on GitHub with every object type: merge, squash and rebase merges, a closed PR, an open PR, reviews with line threads, replies, reactions, bot comments, labels, milestones, tags, releases and a repository to delete. It mirrors the fixture into two GitLab CE 19.5.3 instances, changes things on GitHub, and asserts the results object by object. Final run:</p>
+<table class="compact">
+<tr><th style="width:4%">#</th><th>Step</th><th style="width:11%">Result</th></tr>
+<tr><td>1</td><td>GitHub fixture created; <code>check</code> (both targets, side channels)</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>2</td><td>Seed sync of both targets, then 93 object assertions and a parity report with 0 drift</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>3</td><td>Idempotent re-run: nothing changed, audit count unchanged (12 → 12)</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>4</td><td>Service up; a webhook with a bad signature rejected (401); a duplicate delivery ignored</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>5</td><td>Changes on GitHub picked up by webhooks; 115 object assertions; parity 0 drift</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>6</td><td>Repository deleted on GitHub → archived and kept on both GitLabs; the service does not halt for one deletion</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>7</td><td>Owner vanishes → halt (exit 3, writes frozen at 54, later syncs refused); <code>guard reset</code></td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>8</td><td><code>promote</code>: person active with company email, bots blocked, CI on, push mirror to offline</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>9</td><td>Developer pushes, opens MR !12 and merges it on the promoted GitLab</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>10</td><td>Secondary receives the primary's new commits through the push mirror</td><td><span class="pill ok">pass</span>*</td></tr>
+<tr><td>11</td><td><code>demote</code>: account blocked again, bot-only protection restored</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>12</td><td>Re-sync after the drill restores exact parity on both targets</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>13</td><td>Redirector: <code>github.com/…/pull/3</code> → <code>…/merge_requests/3</code></td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>14</td><td>Weekly GitHub migration archive</td><td><span class="pill skip">skip</span></td></tr>
+</table>
+<p class="small">* The first attempt at step 10 checked after 8 minutes and failed. GitLab pushes a mirror at most once every 5 minutes and backs off after an early attempt (ROADBLOCKS E15), so the test now waits up to 8 minutes, and the repeat with MR !12 passed. The failover steps (8–13) were re-run on the same state after a harness edit interrupted the original run. Step 14 needs a classic PAT of an organization owner, and the test account had only an OAuth token. The engine raised the expected alert.</p>
+
+<h2>8.2 Unit tests</h2>
+<p>42 unit tests pass, and 6 more run only against PostgreSQL. They cover number parity and mapping, webhook signatures (including refusal when no secret is set) and de-duplication, the parity report rendering, saving target-only commits before a ref is pruned, archive versioning, the deletion guard, GitLab retry and recovery after ambiguous failures, the redirector, the setup wizard (target lines, SSH quoting, the GitHub App manifest flow with a simulated GitHub, an unattended run whose output is loaded by the engine's own config loader) and the migration archive policy.</p>
+
+<h2>8.3 From-scratch setup test</h2>
+<p>The setup path was tested as a new user would run it, on a fresh GitLab CE 19.5.3 standing in for an Omnibus host, with its own sshd and sudo, reached over real SSH on a non-standard port:</p>
+<table class="compact">
+<tr><th>Step</th><th style="width:20%">Measured</th><th style="width:11%">Result</th></tr>
+<tr><td><code>prepare-host.sh</code>: user, key, sudo rule, admin bot and token, 344-character target line</td><td>3 min 44 s</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>Second run of <code>prepare-host.sh</code> (idempotent: no duplicate key or user)</td><td>≈ 4 min</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td><code>./setup.sh</code> unattended: image, config, <code>check</code> (side channel ok over SSH + sudo), service up, first copy queued</td><td>5 min 25 s</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>First copy of the test repository, then <code>verify</code> → <code>drift_count: 0</code></td><td>220 s (incl. Rails boot)</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>Interactive <code>ghmirror init</code> in a real terminal, including a bad paste</td><td>—</td><td><span class="pill ok">pass</span></td></tr>
+<tr><td>Re-running <code>setup.sh</code> over an existing install (secrets and targets kept)</td><td>—</td><td><span class="pill ok">pass</span></td></tr>
+</table>
+<p>The GitHub App is created through GitHub's manifest flow, which needs an organization owner's clicks in a browser. Everything on the engine's side of those clicks is unit-tested, but the clicks themselves were not part of the automated tests. The live tests used token authentication.</p>
+
+<h2>8.4 Defects found and fixed during testing</h2>
+<p>Each one is recorded in <code>ROADBLOCKS.md</code> with its cause and fix, and each is fixed and verified.</p>
+<table class="compact">
+<tr><th style="width:8%">ID</th><th>Finding</th></tr>
+<tr><td>E11</td><td>A create that times out after GitLab has already written could be re-sent and duplicate the object. Every create now finds and adopts the existing object first.</td></tr>
+<tr><td>E12</td><td>GitLab refuses push mirrors to private-network hosts, which is where an offline secondary lives. Promote adds the secondary's host to the outbound allowlist and uses its <code>mirror_url</code>.</td></tr>
+<tr><td>E13</td><td>Stopping the local <code>ssh</code>/<code>docker exec</code> did not stop the Rails agent on the GitLab host. Each agent now carries a token, is killed on the host, and exits by itself when idle.</td></tr>
+<tr><td>E14</td><td>Two GitLabs on one 8 GB host overload: sizing guidance (§5.1), side-channel boot wait raised to 45 minutes.</td></tr>
+<tr><td>E15–E16</td><td>Push mirrors run at most every 5 minutes; GitLab's branch cache lags. Both are documented and handled.</td></tr>
+<tr><td>E17</td><td><code>verify</code> now also reports objects that exist only on GitLab.</td></tr>
+<tr><td>E18–E19</td><td>Promote interrupted midway: <code>demote</code> restores everything. An unreachable secondary at promote is now a reported failure, not a silent skip.</td></tr>
+<tr><td>E20–E22</td><td>Side channel over real SSH: argument quoting, <code>pkill</code> self-match, sudo path matching.</td></tr>
+<tr><td>E23–E24</td><td>Compose stack: mounts, volume ownership, secret permissions, port clash, database start-up race.</td></tr>
+<tr><td>E25</td><td>GitLab 19's new name-clash message; personal-account group naming.</td></tr>
+<tr><td>E26–E28</td><td>Paste-length limit of terminals; a false drift alert on day one; weekly migration alert noise with GitHub Apps.</td></tr>
+<tr><td>E29</td><td>A branch made by hand on a mirror was removed by the next ref-exact push. Commits that exist only on GitLab are now saved in the engine's git mirror (<code>refs/ghmirror-backup/&lt;time&gt;/target/</code>) before any ref is deleted or overwritten. Verified live (chapter 14).</td></tr>
+<tr><td>E30</td><td>Every push re-versioned every PR in the L2 archive (timestamps of the embedded repository changed). Volatile fields of embedded repositories no longer count as a change.</td></tr>
+</table>
+
+<h1 class="chapter" id="s9"><span class="num">9</span>Limits and known gaps</h1>
+<table class="compact">
+<tr><th style="width:30%">Area</th><th>Limit</th></tr>
+<tr><td>Not exercised end to end</td><td>Organization teams and members, GitHub App authentication against live GitHub, wikis and LFS are implemented and unit-tested, but the live tests used a personal account and a token.</td></tr>
+<tr><td>No GitLab equivalent</td><td>GitHub Discussions, Projects (boards), Actions run history and logs: not copied and not archived.</td></tr>
+<tr><td>Never available</td><td>Secret values (Actions secrets, private halves of deploy keys): GitHub never exposes them. Re-create them in GitLab.</td></tr>
+<tr><td>Side channel needed</td><td>MR creation dates, squash-merged state and approval dates need the side channel. Without it they become notes.</td></tr>
+<tr><td>Restore from L2</td><td>The JSON archive is not replayed into GitLab automatically. Rebuild from GitHub or from the other GitLab (§7.5).</td></tr>
+<tr><td>After failover</td><td>The secondary receives git data only, and up to 5 minutes late. The engine no longer syncs metadata between the GitLabs.</td></tr>
+<tr><td>Usernames</td><td>A mirror account takes the GitHub login. If a GitLab user or group already has that name, it becomes <code>&lt;login&gt;-gh</code> and the engine log records it. Check Admin › Users after the first copy.</td></tr>
+<tr><td>Hosting</td><td>Self-managed GitLab only. GitLab.com cannot impersonate users or set historical dates. Tested on 19.5.3; re-run <code>check</code> and <code>verify</code> after upgrades.</td></tr>
+<tr><td>Security</td><td>The side channel is root-equivalent on each GitLab host (§5.4). Protect the engine host accordingly.</td></tr>
+</table>
+
+<h1 class="chapter" id="s10"><span class="num">10</span>Troubleshooting</h1>
+<table class="compact">
+<tr><th style="width:31%">Symptom</th><th style="width:30%">Likely cause</th><th>Fix</th></tr>
+<tr><td><code>side channel FAILED … a password is required</code></td><td>The sudo rule does not name the path sudo resolves.</td><td>Re-run the current <code>prepare-host.sh</code>, which lists every path.</td></tr>
+<tr><td><code>Host key verification failed</code></td><td>The host was re-installed, or the engine uses another name for it.</td><td>Re-run <code>prepare-host.sh</code> (with <code>--ssh-host</code>) and paste its line into <code>./setup.sh</code>.</td></tr>
+<tr><td><code>agent not ready after 2700s</code></td><td>The GitLab host is overloaded; Rails does not boot.</td><td>Check memory and <code>gitlab-ctl status</code>; size the host per §5.1.</td></tr>
+<tr><td><code>target …: UNAVAILABLE</code> with 401</td><td>Bot token expired or revoked.</td><td>Re-run <code>prepare-host.sh</code> and <code>./setup.sh</code>.</td></tr>
+<tr><td>Paste prompt does not accept the line</td><td>Line cut off while copying.</td><td>Copy the whole line, or pass it as <code>--target NAME=ghmirror-target:…</code>.</td></tr>
+<tr><td>Browser cannot open <code>localhost:8765</code></td><td>The engine runs on a remote server.</td><td><code>ssh -L 8765:localhost:8765 &lt;engine-host&gt;</code>, then reload.</td></tr>
+<tr><td>Webhook deliveries fail with 401</td><td>The secret differs between GitHub and <code>.env</code>.</td><td>Re-run <code>./setup.sh</code> (App: <code>--new-app</code>), or copy the secret from <code>.env</code> into the webhook settings.</td></tr>
+<tr><td>Changes appear only every 15 minutes</td><td>No public webhook URL; polling mode.</td><td>Expected. For seconds, set up the webhook path (§5.5).</td></tr>
+<tr><td><code>ghmirror_halted 1</code></td><td>Deletion guard.</td><td>§7.2.</td></tr>
+<tr><td>Dead jobs</td><td>A job failed 5 times.</td><td><code>docker compose logs engine</code> for the error, fix it, then <code>enqueue-all</code>.</td></tr>
+<tr><td>Secondary not updated right after promote</td><td>GitLab's 5-minute push-mirror schedule.</td><td>Wait 5 minutes; see Settings › Repository › Mirroring repositories.</td></tr>
+<tr><td>Migration archive alert</td><td>No classic PAT for the migrations API.</td><td>Optional. Set <code>GITHUB_MIGRATION_TOKEN</code> in <code>.env</code> (owner, <code>repo, admin:org</code>).</td></tr>
+<tr><td>setup: files appear empty in the container (macOS)</td><td>Docker Desktop or colima shares only some folders (colima: the home folder).</td><td>Keep the repository under your home folder.</td></tr>
+</table>
+

@@ -1,0 +1,1 @@
+{ "private": true, "description": "renders the ghmirror guide PDF", "dependencies": { "playwright-core": "1.48.2" } }

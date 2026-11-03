@@ -136,7 +136,9 @@ def verify(eng, only=None, repair=False):
                                    "AND parent=? AND gl_iid=?", (ctx.name, x["kind"], str(repo["id"]), x["id"]))
                 if any(x["target"] == ctx.name and x["repo"] == full for x in drift):
                     db.enqueue("full", full)
-    report = {"ts": time.time(), "checked": checked, "drift_count": len(drift), "drift": drift}
+    report = {"ts": time.time(), "owner": eng.cfg.owner, "targets": [c.name for c in targets],
+              "repos": [r["full_name"] for r in repos], "repair": repair, "checked": checked,
+              "drift_count": len(drift), "drift": drift}
     out = os.path.join(eng.archive.root, "_reports")
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, f"verify-{time.strftime('%Y%m%dT%H%M%S')}.json"), "w") as f:
@@ -145,3 +147,61 @@ def verify(eng, only=None, repair=False):
     if drift:
         eng.alert("error", f"parity check found {len(drift)} differences, e.g. {drift[:3]}")
     return report
+
+
+FIELD_NOTES = {
+    "exists": "present on one side only",
+    "sha": "branch or tag points at a different commit",
+    "set": "names missing on one side",
+}
+
+
+def _cell(v):
+    if v is None:
+        return "*(none)*"
+    if isinstance(v, (list, dict)):
+        v = json.dumps(v, ensure_ascii=False)
+    v = str(v).replace("|", "\\|").replace("\n", " ")
+    return f"`{v[:80]}{'…' if len(v) > 80 else ''}`"
+
+
+def render_markdown(rep):
+    """A human-readable parity report (the JSON one is for machines and alerting)."""
+    c = rep["checked"]
+    when = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(rep["ts"]))
+    status = "**PASS**: no differences" if not rep["drift_count"] else f"**DRIFT**: {rep['drift_count']} difference(s)"
+    out = [f"# Parity report: GitHub `{rep.get('owner', '?')}` vs GitLab", "",
+           "| | |", "|---|---|",
+           f"| Generated | {when} |",
+           f"| Targets | {', '.join(rep.get('targets') or []) or '(none in mirror mode)'} |",
+           f"| Result | {status} |",
+           f"| Repair requested | {'yes: drifted objects re-queued for a full re-sync' if rep.get('repair') else 'no'} |", "",
+           "## Coverage", "",
+           "| Repositories | Issues compared | Pull requests / merge requests compared | Pending first copy |",
+           "|---:|---:|---:|---:|",
+           f"| {c['repos']} | {c['issues']} | {c['mrs']} | {c.get('pending', 0)} |", "",
+           "Each repository is compared on every branch and tag (commit SHA), every issue (title, state, author,",
+           "creation time, labels, milestone, comment count), every pull request (the same, plus target branch,",
+           "merged-by and merge time), and the sets of labels, milestones and releases. Counts are per target.", ""]
+    if rep.get("repos"):
+        out += ["Repositories: " + ", ".join(f"`{r}`" for r in rep["repos"]), ""]
+    out += ["## Differences", ""]
+    if not rep["drift"]:
+        out += ["None. Every compared object matches GitHub on every target.", ""]
+    else:
+        out += ["| Target | Repository | Object | Field | GitHub | GitLab |", "|---|---|---|---|---|---|"]
+        for x in rep["drift"]:
+            obj = {"issue": f"issue #{x['id']}", "mr": f"PR #{x['id']} / !{x['id']}", "ref": f"`{x['id']}`",
+                   "repo": "repository"}.get(x["kind"], x["kind"])
+            field = x["field"] + (f" ({FIELD_NOTES[x['field']]})" if x["field"] in FIELD_NOTES else "")
+            gh, gl = x["github"], x["gitlab"]
+            if x["field"] == "exists":
+                gh, gl = ("present" if gh else "absent"), ("present" if gl else "absent")
+            out.append(f"| {x['target']} | `{x['repo']}` | {obj} | {field} | {_cell(gh)} | {_cell(gl)} |")
+        out += ["", "GitHub is the source of truth. `ghmirror verify --repair` marks the drifted issues and merge",
+                "requests as changed and queues a full re-sync of the affected repositories, which rewrites them",
+                "from GitHub. Issues and merge requests that exist only on GitLab (made by hand on a mirror, or left",
+                "over from a drill) are never deleted: they stay reported for a person to decide. Branches and tags",
+                "are made identical to GitHub; a commit that exists only on GitLab is first saved in the engine's",
+                "git mirror under `refs/ghmirror-backup/<time>/target/`, so no work is lost.", ""]
+    return "\n".join(out)

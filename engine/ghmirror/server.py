@@ -24,9 +24,12 @@ GIT_EVENTS = {"push", "create", "delete"}
 ORG_EVENTS = {"member", "membership", "organization", "team", "team_add"}
 
 
+MAX_BODY = 26 * 1024 * 1024   # GitHub caps webhook payloads at 25 MB
+
+
 def verify_signature(secret, body, header):
     if not secret:
-        return True
+        return False   # fail closed: without a shared secret anyone could queue work
     if not header or not header.startswith("sha256="):
         return False
     want = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
@@ -178,7 +181,10 @@ class Service:
             def do_POST(self):
                 if self.path != "/webhook":
                     return self._send(404, '{"error":"not found"}')
-                body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                size = int(self.headers.get("Content-Length") or 0)
+                if size > MAX_BODY:
+                    return self._send(413, '{"error":"payload too large"}')
+                body = self.rfile.read(size)
                 if not verify_signature(svc.e.cfg.webhook_secret, body, self.headers.get("X-Hub-Signature-256")):
                     return self._send(401, '{"error":"bad signature"}')
                 delivery = self.headers.get("X-GitHub-Delivery") or ""

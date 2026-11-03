@@ -1,0 +1,11 @@
+.venv/
+node_modules/
+package-lock.json
+shots/
+img/
+qa/
+guide.html
+pass1.pdf
+pass2.pdf
+nofooter.pdf
+ghmirror-guide.pdf

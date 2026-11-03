@@ -1,5 +1,6 @@
 """Command line: ghmirror -c config.yaml <command>."""
 import argparse
+import datetime
 import json
 import logging
 import signal
@@ -42,6 +43,8 @@ def main(argv=None):
     v = sub.add_parser("verify", help="parity report GitHub vs targets")
     v.add_argument("--repo", action="append")
     v.add_argument("--repair", action="store_true")
+    v.add_argument("--format", choices=["json", "markdown"], default="json")
+    v.add_argument("--output", help="also write the report to this file")
     p = sub.add_parser("promote", help="fail over to a GitLab target")
     p.add_argument("--primary", required=True)
     p.add_argument("--yes", action="store_true")
@@ -90,8 +93,19 @@ def main(argv=None):
                 except Exception as e:
                     sc = f"FAILED {e}"
                     ok = False
+            tok = "expiry unknown"
+            try:
+                exp = c.gl.get("/personal_access_tokens/self").get("expires_at")
+                if exp:
+                    left = (datetime.date.fromisoformat(exp) - datetime.date.today()).days
+                    tok = f"token expires {exp} ({left} days)" + (" RENEW SOON" if left < 30 else "")
+                    ok = ok and left > 0
+                else:
+                    tok = "token never expires"
+            except Exception:
+                pass
             print(f"target {c.name}: GitLab {ver}, group {c.t.group} (id {c.group_id}), bot {c.bot_username}, "
-                  f"mode {c.mode}, side channel {sc}")
+                  f"mode {c.mode}, side channel {sc}, {tok}")
         sys.exit(0 if ok else 1)
 
     if args.cmd == "sync":
@@ -126,9 +140,18 @@ def main(argv=None):
     if args.cmd == "verify":
         from .verify import verify
         rep = verify(eng, only=args.repo, repair=args.repair)
-        print(json.dumps({k: rep[k] for k in ("checked", "drift_count")}))
-        for d in rep["drift"][:50]:
-            print("DRIFT", json.dumps(d))
+        if args.format == "markdown":
+            from .verify import render_markdown
+            text = render_markdown(rep)
+            print(text)
+        else:
+            text = json.dumps(rep, indent=1)
+            print(json.dumps({k: rep[k] for k in ("checked", "drift_count")}))
+            for d in rep["drift"][:50]:
+                print("DRIFT", json.dumps(d))
+        if args.output:
+            with open(args.output, "w") as f:
+                f.write(text + "\n")
         sys.exit(1 if rep["drift_count"] else 0)
 
     if args.cmd == "promote":

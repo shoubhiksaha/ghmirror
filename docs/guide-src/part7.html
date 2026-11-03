@@ -1,0 +1,83 @@
+<h1 class="chapter" id="sA"><span class="num">A</span>Command reference</h1>
+<p>Run <code>ghmirror -c ghmirror.yaml &lt;command&gt;</code>, or <code>docker compose run --rm engine &lt;command&gt;</code> in <code>deploy/compose/</code>. The config path is preset in the container.</p>
+<table class="compact">
+<tr><th style="width:26%">Command</th><th>Purpose</th></tr>
+<tr><td><code>init</code></td><td>Guided setup: writes <code>ghmirror.yaml</code>, <code>.env</code>, <code>identities.yaml</code>, <code>secrets/</code>. Flags: <code>--dir --owner --owner-type --github-auth app|token --github-token --new-app --webhook-url --target-names --target NAME=LINE --group --include --alert-webhook --callback-port --callback-bind --yes</code>.</td></tr>
+<tr><td><code>check</code></td><td>GitHub access, admin tokens, groups (created if missing), side channels. Exit 1 on any failure.</td></tr>
+<tr><td><code>run</code></td><td>The service: webhook receiver on <code>/webhook</code>, <code>/healthz</code>, <code>/metrics</code>, <code>/status</code>, queue workers, scheduler.</td></tr>
+<tr><td><code>sync [--repo R] [--full] [--org] [--no-git] [--no-meta]</code></td><td>One-off sync without the queue. Exit 3 if the guard halts.</td></tr>
+<tr><td><code>enqueue-all</code></td><td>Queue a full pass for every selected repository (the service works through it).</td></tr>
+<tr><td><code>verify [--repo R] [--repair] [--format json|markdown] [--output F]</code></td><td>Parity report. Exit 1 on drift. <code>--repair</code> re-syncs drifted objects. <code>--format markdown</code> prints the readable report (chapter 14); <code>--output</code> also writes it to a file.</td></tr>
+<tr><td><code>status</code></td><td>Mode, queue, last parity report, recent alerts (JSON).</td></tr>
+<tr><td><code>guard status|reset</code></td><td>Show or clear the deletion-guard halt.</td></tr>
+<tr><td><code>promote --primary NAME [--yes]</code></td><td>Fail over to a GitLab target. Exit 1 if any step failed (listed).</td></tr>
+<tr><td><code>demote</code></td><td>Undo promote exactly, from its record (drills).</td></tr>
+<tr><td><code>redirector [--listen ADDR]</code></td><td>Serve old GitHub URLs as redirects to the primary GitLab.</td></tr>
+<tr><td><code>archive-migration [--no-wait]</code></td><td>Run GitHub's migration export now and store it in the archive.</td></tr>
+</table>
+<table class="compact">
+<tr><th style="width:26%">Script</th><th>Purpose</th></tr>
+<tr><td><code>deploy/compose/setup.sh</code></td><td>Build, <code>init</code>, <code>check</code>, start, first copy. Extra arguments go to <code>init</code>.</td></tr>
+<tr><td><code>prepare-host.sh</code></td><td>Run on a GitLab host as root: <code>--pubkey --container --ssh-host --ssh-port --bot --token-days</code>.</td></tr>
+<tr><td><code>e2e/run_e2e.sh</code></td><td>The end-to-end test (needs Docker and a GitHub token; creates and deletes its own repositories).</td></tr>
+</table>
+
+<h1 class="chapter" id="sB"><span class="num">B</span>Configuration reference</h1>
+<p><code>ghmirror.yaml</code>. Any value can be <code>${VAR}</code> or <code>${VAR:-default}</code>, taken from the environment (<code>.env</code>). Defaults are shown.</p>
+<table class="compact">
+<tr><th style="width:36%">Key</th><th>Meaning</th></tr>
+<tr><td><code>source.owner</code>, <code>owner_type</code> (<code>org</code>)</td><td>GitHub organization or user, and its type.</td></tr>
+<tr><td><code>source.api_url</code>, <code>web_url</code></td><td>For GitHub Enterprise Server (default github.com).</td></tr>
+<tr><td><code>source.auth.app_id</code>, <code>app_private_key_file</code>, <code>app_installation_id</code></td><td>GitHub App authentication (or <code>app_private_key</code> inline).</td></tr>
+<tr><td><code>source.auth.token</code></td><td>…or a classic PAT.</td></tr>
+<tr><td><code>source.auth.migration_token</code></td><td>Optional classic PAT (<code>repo, admin:org</code>) for the weekly migration archive.</td></tr>
+<tr><td><code>source.webhook_secret</code></td><td>HMAC secret for webhook signatures.</td></tr>
+<tr><td><code>source.repos.include</code> (<code>["*"]</code>), <code>exclude</code></td><td>Glob patterns on repository names.</td></tr>
+<tr><td><code>targets[].name</code>, <code>url</code>, <code>token</code>, <code>group</code></td><td>One entry per GitLab: name, base URL, admin bot token, top-level group.</td></tr>
+<tr><td><code>targets[].side_channel</code></td><td>Command prefix that runs a program on the GitLab host (<code>ssh … sudo</code>, or <code>docker exec -i NAME</code>). Omit to disable.</td></tr>
+<tr><td><code>targets[].visibility_cap</code> (<code>private</code>)</td><td>Most open visibility a mirrored project may get.</td></tr>
+<tr><td><code>targets[].mirror_url</code>, <code>git_url</code></td><td>How the other GitLab reaches this one (push mirrors after promote); a git URL override.</td></tr>
+<tr><td><code>targets[].ci_config_path</code></td><td>Optional external CI configuration path set on each project, for example <code>pipelines/{repo}.gitlab-ci.yml@{group}/ci-config</code>.</td></tr>
+<tr><td><code>state.database</code></td><td><code>postgresql://…</code> (compose) or <code>sqlite:///…</code>.</td></tr>
+<tr><td><code>state.mirrors_dir</code>, <code>archive_dir</code></td><td>L1 bare mirrors and L2 archive.</td></tr>
+<tr><td><code>identity.email_domain</code></td><td>Domain for placeholder emails of people missing from the map.</td></tr>
+<tr><td><code>identity.email_map_file</code>, <code>email_map</code></td><td>GitHub login → company email (file next to the config, or inline).</td></tr>
+<tr><td><code>identity.import_keys</code>, <code>import_avatars</code> (<code>true</code>)</td><td>Copy SSH/GPG keys and avatars to mirror accounts.</td></tr>
+<tr><td><code>sync.mirror_attachments</code> (<code>true</code>)</td><td>Copy files pasted into issues and comments.</td></tr>
+<tr><td><code>guard.max_disappear_ratio</code> (0.02), <code>max_disappear_count</code> (1)</td><td>Halt when more than this share <i>and</i> count vanish in one pass.</td></tr>
+<tr><td><code>schedule.repos/meta/git/org/full/verify/migration</code></td><td>Seconds: 3600 / 3600 / 21600 / 21600 / 86400 / 86400 / 604800.</td></tr>
+<tr><td><code>alerts.webhook_url</code></td><td>Slack-compatible incoming webhook.</td></tr>
+<tr><td><code>server.listen</code> (<code>0.0.0.0:8080</code>), <code>workers</code></td><td>Service address and worker threads.</td></tr>
+<tr><td><code>redirect.target</code>, <code>base_url</code></td><td>Redirector destination target and public base URL.</td></tr>
+<tr><td><code>promote.broadcast_message</code></td><td>Banner text shown after promote.</td></tr>
+</table>
+
+<h1 class="chapter" id="sC"><span class="num">C</span>Repository layout</h1>
+<table class="compact">
+<tr><th style="width:44%">Path</th><th>Content</th></tr>
+<tr><td><code>README.md</code></td><td>Start here: what it is, quick start</td></tr>
+<tr><td><code>DESIGN.md</code></td><td>Full design and decisions</td></tr>
+<tr><td><code>RESEARCH-prior-art.md</code></td><td>Existing tools and what was taken from them</td></tr>
+<tr><td><code>ROADBLOCKS.md</code></td><td>Every risk checked and every defect found (E1–E30)</td></tr>
+<tr><td><code>docs/RUNBOOK.md</code></td><td>Operations, short form of chapter 7</td></tr>
+<tr><td><code>docs/INSTALL.md</code>, <code>examples/</code></td><td>Reproducible installation; sample configuration</td></tr>
+<tr><td><code>docs/SECURITY.md</code>, <code>CAPACITY.md</code>, <code>SUPPORT-MATRIX.md</code></td><td>Chapters 11, 12 and 13 in full</td></tr>
+<tr><td><code>docs/demo/</code>, <code>docs/samples/</code></td><td>Recorded failover drill; sample parity reports (chapter 14)</td></tr>
+<tr><td><code>docs/COMMERCIAL.md</code></td><td>Draft commercial offering (chapter 15)</td></tr>
+<tr><td><code>docs/ghmirror-guide.pdf</code>, <code>docs/guide-src/</code></td><td>This guide and its sources</td></tr>
+<tr><td><code>engine/ghmirror/cli.py</code></td><td>Commands (appendix A)</td></tr>
+<tr><td><code>engine/ghmirror/setup.py, prepare-host.sh</code></td><td><code>ghmirror init</code>; GitLab host preparation</td></tr>
+<tr><td><code>engine/ghmirror/engine.py</code></td><td>Targets, deletion guard, alerts</td></tr>
+<tr><td><code>engine/ghmirror/sync.py</code></td><td>Repositories, issues, PRs, reviews, releases</td></tr>
+<tr><td><code>engine/ghmirror/identity.py, org.py</code></td><td>Mirror accounts; members and teams</td></tr>
+<tr><td><code>engine/ghmirror/promote.py, verify.py</code></td><td>Promote/demote; parity report</td></tr>
+<tr><td><code>engine/ghmirror/sidechannel.py, .rb</code></td><td>The Rails agent and its driver</td></tr>
+<tr><td><code>engine/ghmirror/server.py</code></td><td>Webhooks, queue workers, scheduler, metrics</td></tr>
+<tr><td><code>engine/ghmirror/gitmirror.py, archive.py, migration.py</code></td><td>L1 git mirrors; L2 archive; migration archive</td></tr>
+<tr><td><code>engine/ghmirror/github.py, gitlab.py, db.py, mapping.py</code></td><td>API clients, state database, field mapping</td></tr>
+<tr><td><code>engine/tests/</code></td><td>Unit tests</td></tr>
+<tr><td><code>deploy/compose/</code></td><td><code>setup.sh</code>, <code>docker-compose.yml</code>, <code>Dockerfile</code>, <code>entrypoint.sh</code>, example config</td></tr>
+<tr><td><code>deploy/gitlab/</code></td><td>GitLab CE template</td></tr>
+<tr><td><code>e2e/</code></td><td>End-to-end test harness</td></tr>
+<tr><td><code>verification/</code></td><td>The roadblock test scripts and their recorded results</td></tr>
+</table>

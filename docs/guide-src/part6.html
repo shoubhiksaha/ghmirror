@@ -1,0 +1,185 @@
+<!-- ======================= 11 SECURITY ======================= -->
+<h1 class="chapter" id="s11"><span class="num">11</span>Security architecture and threat model</h1>
+<p class="lead">The engine host holds the keys to both GitLabs and a full copy of the code, so it must be protected like the GitLab servers themselves. This chapter summarises <code>docs/SECURITY.md</code>. Every statement there was checked against the code.</p>
+
+<h2>11.1 Trust boundaries</h2>
+<table class="compact">
+<tr><th style="width:21%">Boundary</th><th style="width:33%">Authentication</th><th>Protection</th></tr>
+<tr><td>GitHub → engine (webhooks)</td><td>HMAC-SHA256 over the raw body, constant-time comparison. With no secret configured, every webhook is refused (fail closed). Bodies over 26 MB are refused; duplicate deliveries are dropped.</td><td>The engine listens on <code>127.0.0.1:8080</code> behind your proxy. A webhook only queues a job, and the job re-reads the object from GitHub, so webhook content is never trusted.</td></tr>
+<tr><td>Engine → GitHub</td><td>GitHub App installation token (1-hour lifetime) or a token.</td><td>The App is <b>read-only</b>: contents, metadata, issues, pull requests, discussions, administration, members. It cannot write to GitHub.</td></tr>
+<tr><td>Engine → GitLab API</td><td>Admin bot token (<code>api sudo admin_mode read_api write_repository</code>), 365-day lifetime by default.</td><td>HTTPS. One token per GitLab, so a leak does not cross to the other GitLab. <code>check</code> reports the days left.</td></tr>
+<tr><td>Engine → GitLab host (side channel)</td><td>SSH key only, with the host key pinned at setup (<code>StrictHostKeyChecking=yes</code>).</td><td>The login has no pty and no forwarding. The agent runs a fixed set of operations.</td></tr>
+<tr><td>People → GitLab</td><td>GitLab's login, SSO, 2FA.</td><td>While mirroring, mirror accounts are blocked and people have read access only.</td></tr>
+</table>
+<p>Git credentials travel in <code>http.&lt;url&gt;.extraheader</code> through <code>GIT_CONFIG_*</code> environment variables. They never appear in a remote URL, in <code>ps</code> output or in <code>.git/config</code>.</p>
+
+<h2>11.2 Threats and mitigations</h2>
+<table class="compact">
+<tr><th style="width:24%">Threat</th><th style="width:30%">Impact</th><th>Mitigation</th></tr>
+<tr><td>Engine host compromised</td><td><b>Highest:</b> admin of both GitLabs, root on both GitLab hosts, read access to every repository, the full copy on disk.</td><td>Dedicated VM, disk encryption, no inbound ports except <code>/webhook</code>, operator SSH with keys and 2FA, secrets in 0600 files, encrypted backups of <code>.env</code> and <code>secrets/</code>.</td></tr>
+<tr><td>Side-channel key stolen</td><td>Root-equivalent on that GitLab host: <code>gitlab-rails</code> or <code>docker exec</code> can run any code.</td><td>Key unique to ghmirror; pinned host key; <code>from="&lt;engine IP&gt;"</code> in <code>authorized_keys</code> or a firewall rule; audit <code>ghmirror</code> logins. If unacceptable, run without the side channel (§9).</td></tr>
+<tr><td>Bot token leaked</td><td>Admin API on one GitLab.</td><td>Limited lifetime; revoke in the admin area; audit events (EE).</td></tr>
+<tr><td>Forged webhooks</td><td>Without a secret: work queued (denial of service). No data change.</td><td>HMAC with a 256-bit secret, fail closed, size cap, de-duplication.</td></tr>
+<tr><td>Mass deletion on GitHub (stolen admin, ransomware, mistake)</td><td>Copies destroyed, if mirrored blindly.</td><td>ghmirror never deletes issues, merge requests or projects. Deleted repositories are archived. The deletion guard halts all writes on a mass disappearance. Rewritten git refs keep their old tips in L1, and commits that exist only on GitLab are saved before a ref is reset (E29).</td></tr>
+<tr><td>A GitLab instance compromised</td><td>That copy read or altered.</td><td>Data flows only from GitHub. The nightly <code>verify</code> detects changes and <code>--repair</code> restores them.</td></tr>
+<tr><td><code>/status</code>, <code>/metrics</code> exposed</td><td>Repository names and queue state revealed.</td><td>Both are bound to localhost. Expose only <code>POST /webhook</code>.</td></tr>
+</table>
+
+<h2>11.3 Hardening checklist</h2>
+<div class="callout"><b class="t">Before going live</b>
+<ul>
+<li>Dedicated, encrypted VM.</li>
+<li>Only <code>POST /webhook</code> exposed, over HTTPS.</li>
+<li>A GitHub App rather than a personal token; <code>GITHUB_MIGRATION_TOKEN</code> empty unless needed.</li>
+<li>GitLab URLs on <code>https://</code>.</li>
+<li><code>from=</code> restriction on the side-channel key.</li>
+<li>Token rotation reminder; alerts to a watched channel.</li>
+<li>Backups of secrets kept apart from the data.</li>
+<li>A failover drill twice a year.</li>
+</ul>
+<b>Known limitations:</b>
+<ul>
+<li>The side channel is root-equivalent by design.</li>
+<li>Volumes are not encrypted by ghmirror itself.</li>
+<li><code>/status</code> and <code>/metrics</code> are unauthenticated.</li>
+<li>Rotation is manual.</li>
+<li>There has been no external audit yet.</li>
+</ul></div>
+
+<!-- ======================= 12 CAPACITY ======================= -->
+<h1 class="chapter" id="s12"><span class="num">12</span>Capacity, API limits and recovery objectives</h1>
+<p class="lead">Figures marked <b>measured</b> come from the drill in chapter 14: one repository with 2 issues, 5 PRs, 20 comments and reviews, 3 accounts and a release, on GitLab CE 19.5.3 sharing a 4-CPU / 8 GB VM with the engine. Figures marked estimate scale those measurements up. The full method is in <code>docs/CAPACITY.md</code>.</p>
+
+<h2>12.1 Storage</h2>
+<table class="compact">
+<tr><th style="width:26%">Store</th><th style="width:44%">Size</th><th>Basis</th></tr>
+<tr><td>L1 git mirrors (engine)</td><td>≈ the git size of the mirrored repositories, plus LFS</td><td>bare mirrors</td></tr>
+<tr><td>L2 archive (engine)</td><td>≈ 35 KB per PR, 15 KB per issue, plus attachments and release assets at full size, plus one copy per real change</td><td><b>measured</b>: PR 32–51 KB, issue 13–15 KB</td></tr>
+<tr><td>State database (engine)</td><td>≈ 1–2 KB per object</td><td><b>measured</b>: 64 KB for about 40 objects</td></tr>
+<tr><td>Each GitLab</td><td>git size + attachments (uploads) + release assets (packages) + GitLab's own database</td><td>same objects as GitHub</td></tr>
+</table>
+<p><b>Engine disk:</b> plan ≥ 1.2 × (git + LFS) + 50 KB × (issues + PRs) + attachments + assets + 20 GB.</p>
+<p><b>Example (estimate):</b> 300 repositories, 40 GB git, 5 GB LFS, 35,000 issues and PRs, 10 GB of attachments. That needs about 100 GB on the engine and about 70 GB per GitLab, plus GitLab's baseline.</p>
+
+<h2>12.2 GitHub API limits</h2>
+<table class="compact">
+<tr><th style="width:42%">Authentication</th><th>Requests per hour (GitHub documentation, checked 2026-11-04)</th></tr>
+<tr><td>GitHub App installation</td><td>5,000 minimum. +50 per repository above 20 and +50 per member above 20; at most 12,500.</td></tr>
+<tr><td>GitHub App on Enterprise Cloud</td><td>15,000</td></tr>
+<tr><td>Personal access token / OAuth token</td><td>5,000, shared with everything else that user does</td></tr>
+</table>
+<table class="compact">
+<tr><th style="width:42%">Operation</th><th>API cost</th></tr>
+<tr><td>First copy</td><td><b>measured</b> 32 REST calls and 0 GraphQL for about 30 objects: about 1 call per object</td></tr>
+<tr><td>Nightly parity check</td><td><b>measured</b> 16 calls for 1 repository with 7 issues and PRs: about 4 per repository + 2 per PR</td></tr>
+<tr><td>At the limit</td><td>The engine sleeps until the reset (<code>Retry-After</code> / <code>X-RateLimit-Reset</code>) and continues; nothing is skipped. <code>git fetch</code> does not count against the limit.</td></tr>
+</table>
+<p><b>Example (estimate):</b> a first copy of 35,000 issues and PRs needs about 40,000 calls, which is 3.5 hours of a 12,500/h App budget. A nightly verify needs about 41,000 calls. On a 5,000/h token, run verify weekly.</p>
+
+<h2>12.3 Time for the first copy</h2>
+<p><b>Measured: 168 s in total.</b>
+<ul>
+<li>Group and project: 5 s.</li>
+<li>Mirror accounts: 5–20 s each (avatar and keys).</li>
+<li>Side-channel Rails boot: 25–60 s, once per engine start.</li>
+<li>Issues and merge requests with their comments: about 60 s, or about 2 s per issue or PR.</li>
+</ul>
+<b>Estimate:</b> 35,000 issues and PRs over 4 workers take about 5 hours plus the git transfer, so plan a weekend. The copy is resumable.</p>
+
+<h2>12.4 Recovery objectives</h2>
+<table class="compact">
+<tr><th style="width:38%">Objective</th><th style="width:22%">Value</th><th>Basis</th></tr>
+<tr><td>RPO, with webhooks</td><td><b>2–5 s</b> (push), <b>8–9 s</b> (comment)</td><td><b>measured</b>: GitHub change to GitLab, 5 probes</td></tr>
+<tr><td>RPO, polling only (no public endpoint)</td><td>≤ 15 min</td><td><code>schedule.git</code> / <code>meta</code> = 900 s</td></tr>
+<tr><td>Engine step of the RTO: <code>promote</code></td><td><b>7.8–8.3 s</b></td><td><b>measured</b>: 1 project, 1 account</td></tr>
+<tr><td>… for 300 projects and 200 people</td><td>≈ 7 min</td><td>estimate, linear in API calls</td></tr>
+<tr><td>… with a reachable secondary</td><td>+ 65 s once</td><td>GitLab caches the outbound allowlist</td></tr>
+<tr><td>Secondary lag after promote</td><td>≤ 5 min</td><td>GitLab push-mirror interval (e2e step 10)</td></tr>
+<tr><td><code>demote</code></td><td><b>1.2–2 s</b></td><td><b>measured</b></td></tr>
+<tr><td>Expected RTO, from decision to developers pushing</td><td>15–30 min</td><td>dominated by communication; see the runbook (§7.3)</td></tr>
+</table>
+
+<!-- ======================= 13 SUPPORT MATRIX ======================= -->
+<h1 class="chapter" id="s13"><span class="num">13</span>Supported platforms and offline-mode limits</h1>
+<p class="lead">The status words are: <span class="pill ok">tested</span> exercised end to end; <span class="pill part">built</span> implemented and unit-tested; <span class="pill skip">expected</span> same API as a tested platform but untested; <span class="pill no">unsupported</span>. Full table: <code>docs/SUPPORT-MATRIX.md</code>.</p>
+<h2>13.1 Editions</h2>
+<table class="compact">
+<tr><th style="width:42%">Platform</th><th style="width:15%">Status</th><th>Notes</th></tr>
+<tr><td>GitHub.com, personal account</td><td><span class="pill ok">tested</span></td><td>e2e, setup test and the drill</td></tr>
+<tr><td>GitHub.com organization (Free, Team)</td><td><span class="pill part">built</span></td><td>unit-tested; no organization in the e2e</td></tr>
+<tr><td>GitHub Enterprise Cloud (incl. EMU, data residency)</td><td><span class="pill skip">expected</span></td><td>data residency: set <code>api_url</code> / <code>web_url</code> by hand</td></tr>
+<tr><td>GitHub Enterprise Server 3.x</td><td><span class="pill skip">expected</span></td><td><code>api_url: https://HOST/api/v3</code>; token mode in <code>init</code></td></tr>
+<tr><td>GitLab CE 19.5.3, Omnibus (Docker or package)</td><td><span class="pill ok">tested</span></td><td>e2e with two instances, setup test over SSH, the drill</td></tr>
+<tr><td>GitLab CE/EE 19.x self-managed</td><td><span class="pill skip">expected</span></td><td>re-run the e2e before upgrading GitLab across a minor version</td></tr>
+<tr><td>GitLab older than 19.0</td><td><span class="pill no">not tested</span></td><td>likely back to 17.x; unsupported until tested</td></tr>
+<tr><td>GitLab Helm chart (Kubernetes)</td><td><span class="pill no">not built</span></td><td>would need a <code>kubectl exec</code> side channel</td></tr>
+<tr><td>GitLab.com, GitLab Dedicated</td><td><span class="pill no">unsupported</span></td><td>no impersonation or historical dates; no host access</td></tr>
+</table>
+<h2>13.2 Exact limits of the offline (on-premises) copy</h2>
+<table class="compact">
+<tr><th style="width:26%">Limit</th><th>Detail</th></tr>
+<tr><td>Not air-gapped</td><td>The engine pushes to it over the network and must reach GitHub at the same time. There is no export-to-media mode.</td></tr>
+<tr><td>Read-only while mirroring</td><td>Changes made by hand are reported by <code>verify</code> and may be overwritten from GitHub. Commits that exist only on GitLab are saved first (E29).</td></tr>
+<tr><td>Freshness</td><td>Seconds with webhooks, up to 15 minutes when polling; catches up after engine downtime.</td></tr>
+<tr><td>After failover</td><td>The secondary receives git only, within 5 minutes. Issues and merge requests created after the failover are not copied to it.</td></tr>
+<tr><td>Links in text</td><td>Attachments, avatars and release assets are copied; links in text still point at GitHub.</td></tr>
+<tr><td>CI</td><td>Disabled while mirroring, enabled by <code>promote</code>. Runners and variables must be prepared on the offline GitLab.</td></tr>
+<tr><td>One engine</td><td>One engine feeds both GitLabs. If it is lost, updates stop, but the copies stay intact.</td></tr>
+<tr><td>Restore from L2</td><td>Manual (scripted). The fast path is a new first copy from GitHub, or export/import from the surviving GitLab.</td></tr>
+</table>
+
+<!-- ======================= 14 DEMO ======================= -->
+<h1 class="chapter" id="s14"><span class="num">14</span>Recorded failover drill and parity report</h1>
+<p class="lead">This drill was recorded live on 2026-11-04. A scratch GitHub repository was mirrored into GitLab CE 19.5.3, GitLab was promoted, a developer shipped a fix on GitLab, and the drill was ended with demote. The video (3 min 16 s), the raw terminal recordings and a transcript are in <code>docs/demo/</code>.</p>
+<figure><img src="img/40-drill-promote.png"><figcaption><b>Figure 25.</b> A healthy mirror (<code>check</code>, <code>verify</code> with 0 differences), then <code>promote</code> in <b>7.8 s</b> with <code>failures: []</code> and the last sync time per repository (<code>rpo</code>). The developer then clones from GitLab: same history, same tags.</figcaption></figure>
+<figure><img src="img/41-drill-mr-list.png"><figcaption><b>Figure 26.</b> The developer's view, signed in with their own account after promote. The failover banner is on every page. Merge requests !3 to !7 are GitHub's PRs #3 to #7. !8 was pushed, opened and merged on GitLab during the outage.</figcaption></figure>
+<figure><img src="img/42-drill-mr8.png"><figcaption><b>Figure 27.</b> !8, merged by the developer's own account while GitHub was down.</figcaption></figure>
+<figure><img src="img/43-drill-demote.png"><figcaption><b>Figure 28.</b> <code>demote</code> in <b>1.2 s</b>. The parity check then reports the drill's work instead of losing it: <code>main</code> moved on GitLab, and !8 exists only on GitLab.</figcaption></figure>
+
+<h2>14.1 Sample parity report</h2>
+<p><code>ghmirror verify --format markdown</code> renders the nightly check for people. The reports below are real; the JSON versions and full texts are in <code>docs/samples/</code>. After the first copy the result was <span class="pill ok">PASS</span>: 1 repository, 2 issues and 5 PRs compared, 0 differences. Four changes were then made by hand on the GitLab mirror. The next report found all four:</p>
+<table class="compact">
+<tr><th style="width:23%">Object</th><th style="width:21%">Field</th><th style="width:22%">GitHub</th><th>GitLab</th></tr>
+<tr><td><code>refs/heads/local-experiment</code></td><td>sha</td><td><i>(none)</i></td><td><code>8c66c426…</code></td></tr>
+<tr><td>issue #1</td><td>title</td><td>Crash on startup</td><td>Crash on startup (edited on the mirror)</td></tr>
+<tr><td>issue #1</td><td>labels</td><td>bug, mirror-test</td><td>mirror-test</td></tr>
+<tr><td>issue #3</td><td>exists</td><td>absent</td><td>present</td></tr>
+</table>
+<p>After <code>ghmirror verify --repair</code> and the queued re-sync, the title, the label and the branch matched GitHub again. The branch was removed only after its commit had been saved in the engine's git mirror. Issue #3, which was made by hand, remained in the report: ghmirror never deletes issues, so a person decides.</p>
+
+<!-- ======================= 15 COMMERCIAL ======================= -->
+<h1 class="chapter" id="s15"><span class="num">15</span>Commercial deployment and support (draft)</h1>
+<p class="lead">This chapter is a draft. Price, licence, legal entity and response times are the owner's decisions; the full draft is <code>docs/COMMERCIAL.md</code>.</p>
+<h2>15.1 Offering</h2>
+<table class="compact">
+<tr><th style="width:22%">Element</th><th>Content</th></tr>
+<tr><td>Packaging (to decide)</td><td>Commercial EULA, source-available (recommended, so buyers can audit a tool with root-equivalent access), or open source with paid services.</td></tr>
+<tr><td>Deployment service</td><td>
+<ol>
+<li>Assessment: sizing, network, identity.</li>
+<li>GitLab hosts.</li>
+<li>Engine install and hardening.</li>
+<li>First copy, ending in a parity report that passes.</li>
+<li>Failover drill and handover.</li>
+</ol>
+About 8–15 consultant days.</td></tr>
+<tr><td>Support tiers</td><td>
+<ul>
+<li><b>Standard:</b> business hours.</li>
+<li><b>Business:</b> two time zones, one assisted drill a year.</li>
+<li><b>Critical:</b> 24×7 for Severity 1, two drills a year, a named engineer during a real failover.</li>
+</ul></td></tr>
+<tr><td>Severity 1 target (proposal)</td><td>Failover needed and <code>promote</code> fails, or the mirror is halted while GitHub is down. Response: 1 business day (Standard), 4 hours (Business), 1 hour 24×7 (Critical).</td></tr>
+<tr><td>Release policy (proposal)</td><td>Semantic versions with tagged releases; the current and previous minor release supported; each monthly GitLab release run through the e2e within 10 working days.</td></tr>
+</table>
+<h2>15.2 Readiness gaps before the first paying customer</h2>
+<table class="compact">
+<tr><th style="width:5%">#</th><th style="width:40%">Gap</th><th>Why it matters</th></tr>
+<tr><td>1</td><td>No e2e with a GitHub organization (teams, App clicks)</td><td>Organizations are the main customers.</td></tr>
+<tr><td>2</td><td>No load test on a realistic estate</td><td>Chapter 12 extrapolates from one repository.</td></tr>
+<tr><td>3</td><td>No CI pipeline, tagged releases or signed image</td><td>Needed for the compatibility promise.</td></tr>
+<tr><td>4</td><td>No versioned schema migrations</td><td>Upgrades that change the state schema need a path.</td></tr>
+<tr><td>5</td><td>No external security review</td><td>The engine holds high-value credentials.</td></tr>
+<tr><td>6</td><td>No LICENSE / EULA; product name not checked</td><td>Cannot be sold or evaluated legally without them.</td></tr>
+<tr><td>7</td><td>Single maintainer; no GitLab-to-GitLab metadata sync after failover</td><td>Support cover; completeness of the secondary.</td></tr>
+</table>

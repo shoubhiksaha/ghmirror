@@ -125,10 +125,24 @@ class Mirror:
                     if default_branch and ref == f"refs/heads/{default_branch}":
                         continue
                     deletes.append(f":{ref}")
+        # a ref about to be deleted or overwritten on the target whose commit the mirror does not have was
+        # made on the target (by hand, or during a drill): save it into the mirror first, never lose it
+        doomed = [d[1:] for d in deletes] + [u.split(":", 1)[1] for u in updates]
+        lost = {ref: remote[ref] for ref in doomed if ref in remote and not self.has_commit(path, remote[ref])}
+        if lost:
+            unsaved = self._rescue(path, url, env, lost)
+            if unsaved:
+                errors_pre = [f"kept {ref} on the target: could not save its commits first" for ref in unsaved]
+                deletes = [d for d in deletes if d[1:] not in unsaved]
+                updates = [u for u in updates if u.split(":", 1)[1] not in unsaved]
+            else:
+                errors_pre = []
+        else:
+            errors_pre = []
         if default_branch:  # push the default branch first so an empty project adopts it
             first = [u for u in updates if u.endswith(f":refs/heads/{default_branch}")]
             updates = first + [u for u in updates if u not in first]
-        errors = []
+        errors = list(errors_pre)
         if delete_branch:   # protected branches cannot be deleted by git push; the caller uses the API
             for spec in [d for d in deletes if d.startswith(":refs/heads/")]:
                 try:
@@ -147,6 +161,18 @@ class Mirror:
         if has_lfs() and updates and self._uses_lfs(path):
             run(["lfs", "push", "--all", url], cwd=path, env=env, check=False)
         return {"updated": len(updates), "deleted": len([d for d in deletes]), "errors": errors}
+
+    def _rescue(self, path, url, env, lost):
+        """Fetch target-only commits into refs/ghmirror-backup/<time>/target/. Returns the refs not saved."""
+        stamp = time.strftime("%Y%m%dT%H%M%S")
+        specs = [f"+{ref}:refs/ghmirror-backup/{stamp}/target/{ref[len('refs/'):]}" for ref in lost]
+        run(["fetch", "--quiet", "--no-tags", url, *specs], cwd=path, env=env, check=False)
+        unsaved = [ref for ref, sha in lost.items() if not self.has_commit(path, sha)]
+        for ref, sha in lost.items():
+            if ref not in unsaved:
+                log.warning("%s: %s on the target is not on GitHub; commit %s saved under "
+                            "refs/ghmirror-backup/%s/target/ before mirroring", path, ref, sha[:10], stamp)
+        return unsaved
 
     def push_refs(self, path, url, env, refspecs):
         if not refspecs:
