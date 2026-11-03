@@ -1,6 +1,7 @@
 """L1: bare mirror per repository and ref-exact pushes to each GitLab target.
 
-refs/pull/* stay in the bare mirror only. Branch deletions and force-pushes are mirrored, but the
+Branches, tags and git notes are mirrored; refs/pull/* stay in the bare mirror only. Branch
+deletions and force-pushes are mirrored, but the
 previous tip of every deleted or rewritten ref is first saved under refs/ghmirror-backup/ so the
 bare mirror never loses history.
 """
@@ -12,6 +13,9 @@ import time
 
 log = logging.getLogger("ghmirror.git")
 MANAGED_PREFIXES = ("refs/heads/gh-pr/", "refs/heads/gh-pr-base/")
+MIRRORED = ("refs/heads", "refs/tags", "refs/notes")   # made identical on every target
+FETCH_SPECS = ("+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*", "+refs/notes/*:refs/notes/*",
+               "+refs/pull/*:refs/pull/*")
 
 
 class GitError(Exception):
@@ -27,6 +31,17 @@ def run(args, cwd=None, env=None, check=True, timeout=7200):
     return p
 
 
+def ls_refs(url, env, timeout=600):
+    """{ref: sha} of the mirrored namespaces on a remote (peeled tag lines excluded)."""
+    p = run(["ls-remote", "--refs", url, *(f"{ns}/*" for ns in MIRRORED)], env=env, timeout=timeout)
+    out = {}
+    for line in p.stdout.splitlines():
+        sha, ref = line.split("\t")
+        if ref.startswith(tuple(ns + "/" for ns in MIRRORED)):
+            out[ref] = sha
+    return out
+
+
 def has_lfs():
     return shutil.which("git-lfs") is not None
 
@@ -39,7 +54,7 @@ class Mirror:
     def path(self, full, wiki=False):
         return os.path.join(self.root, *full.split("/")[:-1], full.split("/")[-1] + (".wiki" if wiki else "") + ".git")
 
-    def refs(self, path, patterns=("refs/heads", "refs/tags")):
+    def refs(self, path, patterns=MIRRORED):
         p = run(["for-each-ref", "--format=%(objectname) %(refname)", *patterns], cwd=path)
         out = {}
         for line in p.stdout.splitlines():
@@ -64,12 +79,16 @@ class Mirror:
                 run(["config", k, v], cwd=path)
             # explicit refspecs so `fetch --prune` never touches refs/ghmirror-backup/*
             run(["config", "--unset-all", "remote.origin.fetch"], cwd=path, check=False)
-            for spec in ("+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*", "+refs/pull/*:refs/pull/*"):
+            for spec in FETCH_SPECS:
                 run(["config", "--add", "remote.origin.fetch", spec], cwd=path)
         else:
-            before = self.refs(path, ("refs/heads", "refs/tags"))
+            have = run(["config", "--get-all", "remote.origin.fetch"], cwd=path, check=False).stdout.split()
+            for spec in FETCH_SPECS:   # mirrors made by older versions lack refs/notes/*
+                if spec not in have:
+                    run(["config", "--add", "remote.origin.fetch", spec], cwd=path)
+            before = self.refs(path)
             run(["fetch", "--prune", "--quiet", "origin"], cwd=path, env=env)
-            after = self.refs(path, ("refs/heads", "refs/tags"))
+            after = self.refs(path)
             self._backup_rewritten(path, before, after)
         if not wiki and has_lfs() and self._uses_lfs(path):
             run(["lfs", "fetch", "--all", "origin"], cwd=path, env=env, check=False)
@@ -93,19 +112,13 @@ class Mirror:
             log.info("%s: %s %s, old tip %s kept", path, ref, "deleted" if new is None else "rewritten", old[:10])
 
     def remote_refs(self, url, env):
-        p = run(["ls-remote", "--heads", "--tags", url], env=env, timeout=600)
-        out = {}
-        for line in p.stdout.splitlines():
-            sha, ref = line.split("\t")
-            if not ref.endswith("^{}"):
-                out[ref] = sha
-        return out
+        return ls_refs(url, env)
 
     def has_commit(self, path, sha):
         return run(["cat-file", "-e", f"{sha}^{{commit}}"], cwd=path, check=False).returncode == 0
 
     def push(self, path, url, env, extra=None, default_branch=None, prune=True, delete_branch=None):
-        """Make the target's heads/tags equal to the mirror's, plus `extra` {ref: sha} managed refs.
+        """Make the target's heads/tags/notes equal to the mirror's, plus `extra` {ref: sha} managed refs.
 
         Refs under MANAGED_PREFIXES on the target are never pruned here (the PR sync owns them).
         Returns {'updated': n, 'deleted': n, 'errors': [...]}.

@@ -3,8 +3,9 @@
 The numbers marked **measured** come from a drill on 2026-11-04. The drill mirrored one scratch
 repository (2 issues, 5 PRs, 20 comments and reviews, 3 accounts, a release) from GitHub.com into
 GitLab CE 19.5.3. GitLab ran as a single container on a 4-CPU / 8 GB VM shared with the engine,
-which is deliberately smaller than GitLab's recommended size. Rows marked **estimate** extrapolate
-from those numbers. Validate them with a pilot on part of your estate before committing to a
+which is deliberately smaller than GitLab's recommended size. A second test the same day mirrored
+the full history of the public `git/git` repository (86,000 commits, 1,012 tags; §3.1). Rows marked
+**estimate** extrapolate from those numbers. Validate them with a pilot on part of your estate before committing to a
 schedule (§6).
 
 ## 1. Storage
@@ -13,7 +14,7 @@ schedule (§6).
 
 | Store | Size | Basis |
 |---|---|---|
-| L1 git mirrors (`mirrors` volume) | ≈ total git size of the mirrored repositories, plus LFS objects if used | bare `--mirror` clones; old tips under `refs/ghmirror-backup/` share objects and add little |
+| L1 git mirrors (`mirrors` volume) | 1–2 × the git size of the mirrored repositories, plus LFS objects if used | bare mirrors that also keep every PR's head (`refs/pull/*`), so the commits of unmerged and closed PRs are kept too. **Measured** on `git/git`: 605 MiB against 321 MiB for a plain clone (3,410 PR refs). Old tips under `refs/ghmirror-backup/` share objects and add little |
 | L2 archive (`archive` volume) | ≈ 35 KB per PR (with its reviews and comments) + 15 KB per issue + attachments and release assets at full size + one extra copy per real change | **measured**: PR JSON 32–51 KB, issue JSON 13–15 KB |
 | State database (PostgreSQL) | ≈ 1–2 KB per mirrored object | **measured**: 64 KB for about 40 objects (SQLite) |
 | Reports | ≈ 1 KB per nightly run plus differences | `archive/_reports/` |
@@ -24,14 +25,14 @@ costs nothing (ROADBLOCKS E30).
 **Rule of thumb for the engine host:**
 
 ```
-disk ≥ 1.2 × (git size + LFS size) + 50 KB × (issues + PRs) + attachments + release assets + 20 GB (OS, images, headroom)
+disk ≥ 2 × git size + 1.2 × LFS size + 50 KB × (issues + PRs) + attachments + release assets + 20 GB (OS, images, headroom)
 ```
 
 ### Each GitLab
 
 | Item | Size |
 |---|---|
-| Repositories | ≈ the GitHub git size (GitLab stores the same objects) |
+| Repositories | ≈ the GitHub git size (GitLab stores the same objects; **measured** 345 MB for `git/git`) |
 | Uploads | attachments pasted into issues and comments, avatars |
 | Package registry | release assets |
 | Database | follows GitLab's own sizing for the number of issues, merge requests and notes |
@@ -48,11 +49,11 @@ The example organization has:
 
 | | Engine host | Each GitLab |
 |---|---|---|
-| git + LFS | 54 GB | 45 GB |
+| git + LFS | 86 GB | 45 GB |
 | L2 JSON | 0.9 GB (+ change history) | — |
 | attachments, assets | 10 GB | 10 GB |
 | database | < 0.2 GB | per GitLab sizing |
-| **plan for** | **≈ 100 GB** | **≈ 70 GB + GitLab baseline** |
+| **plan for** | **≈ 120 GB** | **≈ 70 GB + GitLab baseline** |
 
 ## 2. GitHub API limits
 
@@ -105,6 +106,25 @@ Git traffic (`git fetch`) does not count against the API limit.
 - Plan for a **weekend** for the first copy. A production-sized GitLab is faster.
 - The first copy is resumable: an interruption continues where it stopped.
 - Until a repository's first copy is done, verify counts it as *pending*, not drift.
+
+### 3.1 Large history (measured)
+
+The full history of the public `git/git` repository, mirrored from GitHub.com into the test GitLab
+with `ghmirror sync --no-meta` (git only; its pull requests were not copied):
+
+| | Result |
+|---|---|
+| Size | 85,999 commits on 8 branches, 1,012 annotated tags, git notes (`refs/notes/amlog`), 423,000 objects, 321 MiB packed; 9 separate root commits |
+| First copy, total | **293 s** on a home connection (about 2.5 MB/s from GitHub) |
+| … of which pushing into GitLab | **49 s** (measured separately: the same history into an empty project) |
+| GitHub API calls | **2**. Git traffic does not count against the REST limits |
+| Peak memory | **744–774 MB**, in the `git` process packing the push; the engine itself stays under 30 MB |
+| Catch-up pass with nothing new | **4–6 s** |
+| Result | every branch, tag and notes ref has the same object ID on both sides; a fresh clone of each side gives the same 85,999 commits with identical IDs, parents, authors, committers, dates and messages; `git fsck` clean on both |
+
+For a large repository, the first copy is limited by the download from GitHub. Pushing into GitLab
+ran at about 7 MB/s on this small test GitLab. Allow **about 1 GB of engine-host memory per
+worker** that may push a large repository at the same time.
 
 ## 4. Recovery point objective (RPO): how much can be lost
 

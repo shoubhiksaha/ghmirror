@@ -51,7 +51,7 @@ tests); see `engine/README.md`. The Compose stack uses PostgreSQL 16.
 | GitHub | GitLab | Fidelity |
 |---|---|---|
 | Repository, description, topics, default branch, archived flag | Project | exact |
-| Branches, tags, commits | Same refs | exact (force-pushes mirrored; old tips kept in the engine's L1 mirror under `refs/ghmirror-backup/`) |
+| Branches, tags, commits, git notes | Same refs | exact (force-pushes mirrored; old tips kept in the engine's L1 mirror under `refs/ghmirror-backup/`). Tested on an 86,000-commit history |
 | Issues | Issues, same number | exact (author, dates, state, closer, labels, milestone, assignees, lock) |
 | Pull requests | Merge requests, same number | exact (state, merger, dates, drafts, reviewers, the reviewed diff) |
 | Comments, reviews, line comments, reactions | Notes, approvals, diff discussions, award emoji | exact |
@@ -103,8 +103,9 @@ the cloud GitLab. It does **not** mean air-gapped.
 |---|---|---|
 | Repositories | 2 per e2e run (a fixture repository, plus one created and deleted for the guard test) | Larger estates: see CAPACITY.md for the API budget per repository. |
 | Issues / PRs per repository | a handful (4 issues, 4 PRs after phase 2, with comments, reviews, reactions) | Sync cost is linear in objects; the first copy dominates. |
+| Git history per repository | `git/git`: 85,999 commits, 1,012 tags, 321 MiB packed; identical on GitLab, first copy 293 s (CAPACITY.md §3.1) | Git only: the history test did not copy that repository's pull requests. Repositories of several GB, and LFS, are not tested. |
 | GitLab targets | 2 | Any number is supported by config; each adds one copy of all writes. |
 | Concurrent workers | 2 in the e2e; 4 as written by `ghmirror init` (engine default 2) | `server.workers` in the config. |
 
-These are functional tests, not load tests. A load test on a realistic estate (hundreds of
-repositories, tens of thousands of issues) has not been run.
+These are functional tests plus one large-history test, not load tests. A load test on a
+realistic estate (hundreds of repositories, tens of thousands of issues) has not been run.

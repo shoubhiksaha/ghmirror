@@ -6,15 +6,14 @@ import time
 
 from . import mapping
 from .gitlab import GLNotFound
-from .gitmirror import MANAGED_PREFIXES, run
+from .gitmirror import MANAGED_PREFIXES, ls_refs
 
 log = logging.getLogger("ghmirror.verify")
 SEED_GRACE = 86400   # a repository not copied yet (new, or first copy still queued) is "pending" this long
 
 
 def _gh_refs(eng, full):
-    p = run(["ls-remote", "--heads", "--tags", eng.gh.clone_url(full)], env=eng.gh.git_env())
-    return {ref: sha for sha, ref in (ln.split("\t") for ln in p.stdout.splitlines()) if not ref.endswith("^{}")}
+    return ls_refs(eng.gh.clone_url(full), eng.gh.git_env())
 
 
 def verify(eng, only=None, repair=False):

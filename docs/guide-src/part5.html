@@ -80,7 +80,7 @@
 <p class="small">* The first attempt at step 10 checked after 8 minutes and failed. GitLab pushes a mirror at most once every 5 minutes and backs off after an early attempt (ROADBLOCKS E15), so the test now waits up to 8 minutes, and the repeat with MR !12 passed. The failover steps (8–13) were re-run on the same state after a harness edit interrupted the original run. Step 14 needs a classic PAT of an organization owner, and the test account had only an OAuth token. The engine raised the expected alert.</p>
 
 <h2>8.2 Unit tests</h2>
-<p>42 unit tests pass, and 6 more run only against PostgreSQL. They cover number parity and mapping, webhook signatures (including refusal when no secret is set) and de-duplication, the parity report rendering, saving target-only commits before a ref is pruned, archive versioning, the deletion guard, GitLab retry and recovery after ambiguous failures, the redirector, the setup wizard (target lines, SSH quoting, the GitHub App manifest flow with a simulated GitHub, an unattended run whose output is loaded by the engine's own config loader) and the migration archive policy.</p>
+<p>43 unit tests pass, and 6 more run only against PostgreSQL. They cover number parity and mapping, webhook signatures (including refusal when no secret is set) and de-duplication, the parity report rendering, saving target-only commits before a ref is pruned, git notes mirroring, archive versioning, the deletion guard, GitLab retry and recovery after ambiguous failures, the redirector, the setup wizard (target lines, SSH quoting, the GitHub App manifest flow with a simulated GitHub, an unattended run whose output is loaded by the engine's own config loader) and the migration archive policy.</p>
 
 <h2>8.3 From-scratch setup test</h2>
 <p>The setup path was tested as a new user would run it, on a fresh GitLab CE 19.5.3 standing in for an Omnibus host, with its own sshd and sudo, reached over real SSH on a non-standard port:</p>
@@ -112,6 +112,7 @@
 <tr><td>E26–E28</td><td>Paste-length limit of terminals; a false drift alert on day one; weekly migration alert noise with GitHub Apps.</td></tr>
 <tr><td>E29</td><td>A branch made by hand on a mirror was removed by the next ref-exact push. Commits that exist only on GitLab are now saved in the engine's git mirror (<code>refs/ghmirror-backup/&lt;time&gt;/target/</code>) before any ref is deleted or overwritten. Verified live (chapter 14).</td></tr>
 <tr><td>E30</td><td>Every push re-versioned every PR in the L2 archive (timestamps of the embedded repository changed). Volatile fields of embedded repositories no longer count as a change.</td></tr>
+<tr><td>E31</td><td>Large-history test (<code>git/git</code>): git notes never reached GitLab, and the engine fetched them only on its first clone. Notes are now fetched, pushed and compared like branches and tags; existing mirrors upgrade themselves. Verified live (§12.3).</td></tr>
 </table>
 
 <h1 class="chapter" id="s9"><span class="num">9</span>Limits and known gaps</h1>

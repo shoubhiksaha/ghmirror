@@ -53,13 +53,13 @@
 <h2>12.1 Storage</h2>
 <table class="compact">
 <tr><th style="width:26%">Store</th><th style="width:44%">Size</th><th>Basis</th></tr>
-<tr><td>L1 git mirrors (engine)</td><td>≈ the git size of the mirrored repositories, plus LFS</td><td>bare mirrors</td></tr>
+<tr><td>L1 git mirrors (engine)</td><td>1–2 × the git size of the mirrored repositories, plus LFS</td><td>bare mirrors that also keep every PR's head; <b>measured</b> on <code>git/git</code>: 605 MiB against 321 MiB for a plain clone</td></tr>
 <tr><td>L2 archive (engine)</td><td>≈ 35 KB per PR, 15 KB per issue, plus attachments and release assets at full size, plus one copy per real change</td><td><b>measured</b>: PR 32–51 KB, issue 13–15 KB</td></tr>
 <tr><td>State database (engine)</td><td>≈ 1–2 KB per object</td><td><b>measured</b>: 64 KB for about 40 objects</td></tr>
 <tr><td>Each GitLab</td><td>git size + attachments (uploads) + release assets (packages) + GitLab's own database</td><td>same objects as GitHub</td></tr>
 </table>
-<p><b>Engine disk:</b> plan ≥ 1.2 × (git + LFS) + 50 KB × (issues + PRs) + attachments + assets + 20 GB.</p>
-<p><b>Example (estimate):</b> 300 repositories, 40 GB git, 5 GB LFS, 35,000 issues and PRs, 10 GB of attachments. That needs about 100 GB on the engine and about 70 GB per GitLab, plus GitLab's baseline.</p>
+<p><b>Engine disk:</b> plan ≥ 2 × git + 1.2 × LFS + 50 KB × (issues + PRs) + attachments + assets + 20 GB.</p>
+<p><b>Example (estimate):</b> 300 repositories, 40 GB git, 5 GB LFS, 35,000 issues and PRs, 10 GB of attachments. That needs about 120 GB on the engine and about 70 GB per GitLab, plus GitLab's baseline.</p>
 
 <h2>12.2 GitHub API limits</h2>
 <table class="compact">
@@ -85,6 +85,16 @@
 <li>Issues and merge requests with their comments: about 60 s, or about 2 s per issue or PR.</li>
 </ul>
 <b>Estimate:</b> 35,000 issues and PRs over 4 workers take about 5 hours plus the git transfer, so plan a weekend. The copy is resumable.</p>
+
+<p><b>Large history (measured):</b> the public <code>git/git</code> repository, git only (<code>sync --no-meta</code>).</p>
+<table class="compact">
+<tr><th style="width:30%">Item</th><th>Result</th></tr>
+<tr><td>Size</td><td>85,999 commits, 8 branches, 1,012 tags, git notes, 321 MiB packed</td></tr>
+<tr><td>First copy</td><td><b>293 s</b> on a home connection (about 2.5 MB/s from GitHub); <b>49 s</b> of it was the push into GitLab</td></tr>
+<tr><td>API calls; catch-up pass</td><td><b>2</b> (git traffic is not rate-limited); <b>4–6 s</b> when nothing is new</td></tr>
+<tr><td>Peak memory</td><td><b>about 0.8 GB</b> in <code>git</code> while packing the push: allow 1 GB per worker</td></tr>
+<tr><td>Result</td><td>Every branch, tag and notes ref has the same object ID on both sides. A fresh clone of each side gives the same 85,999 commits with identical IDs, parents, authors, committers, dates and messages. <code>git fsck</code> is clean.</td></tr>
+</table>
 
 <h2>12.4 Recovery objectives</h2>
 <table class="compact">

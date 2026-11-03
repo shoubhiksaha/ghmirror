@@ -32,7 +32,9 @@ image. Only the Debian security updates to git and OpenSSH can differ, which is 
 ## 2. Prerequisites
 
 **Engine host** (one per installation):
-- Linux VM, 2 vCPU, 4 GB RAM, disk per [CAPACITY.md](CAPACITY.md) §1
+- Linux VM, 2 vCPU, 4 GB RAM (add 1 GB per worker beyond 2 if repositories are larger than a few
+  hundred MB: a large push peaks at about 0.8 GB in git, [CAPACITY.md](CAPACITY.md) §3.1), disk per
+  [CAPACITY.md](CAPACITY.md) §1
 - Docker Engine and Compose v2
 - outbound HTTPS to `api.github.com`, `github.com` and both GitLabs
 - outbound SSH to both GitLab hosts

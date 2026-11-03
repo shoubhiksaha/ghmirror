@@ -133,7 +133,7 @@ Ordered by risk, these are the things a careful buyer will ask about.
 | # | Gap | Why it matters | Effort (estimate) |
 |---|---|---|---|
 | 1 | **No end-to-end test with a GitHub organization** (teams, members, the App manifest flow with live clicks) | The main target customer is an organization, and the tests used a personal account | 2–3 days with a test organization |
-| 2 | **No load test** on a realistic estate (hundreds of repositories, tens of thousands of issues) | CAPACITY.md figures are extrapolated from one repository | 1 week, including fixes |
+| 2 | **No load test** on a realistic estate (hundreds of repositories, tens of thousands of issues). One large history is tested (`git/git`, 86,000 commits, CAPACITY.md §3.1) | Metadata throughput is extrapolated from one small repository | 1 week, including fixes |
 | 3 | **No CI pipeline** (unit tests, image build, e2e against new GitLab releases) | Needed for the compatibility promise in §5 | 2–3 days |
 | 4 | **No tagged releases, no published image** | Customers need a version to pin and an image they can verify | 1 day; sign images (e.g. cosign) |
 | 5 | **No versioned schema migrations** | Upgrades that change the state schema need a migration path | 1–2 days for a migration framework |
@@ -151,4 +151,4 @@ Ordered by risk, these are the things a careful buyer will ask about.
 - capacity and recovery figures (CAPACITY.md)
 - sample parity reports
 - a recorded failover drill (`docs/demo/`)
-- a runbook, and a log of 72 risks checked, including 30 defects found in testing and fixed (ROADBLOCKS.md)
+- a runbook, and a log of 73 risks checked, including 31 defects found in testing and fixed (ROADBLOCKS.md)

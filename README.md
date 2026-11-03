@@ -108,6 +108,8 @@ version). GitLab.com SaaS is not supported: it cannot impersonate users or keep 
 
 Tested end to end against GitHub.com and two GitLab CE 19.5.3 instances: seed, webhooks,
 deletion handling, the deletion guard, a full failover drill and its reversal, with zero drift.
+The full history of `git/git` (86,000 commits, 1,012 tags) was mirrored with every commit identical
+([CAPACITY.md](docs/CAPACITY.md) §3.1).
 The one-command setup was tested from scratch over real SSH. Organization teams, GitHub App
 authentication against live GitHub, wikis and LFS are implemented and unit-tested but were not
 exercised end to end (the test account is personal). Details and limits: guide chapters 8 and 9.
