@@ -26,16 +26,21 @@ numbers, authors and dates, and it never deletes. A tested failover takes minute
 
 Details: `RESEARCH-prior-art.md`.
 
-## 2. Packaging **[DECIDE]**
+## 2. Packaging (decided: open source, AGPL-3.0-or-later, dual-licensed)
 
-| Option | What the customer gets | Notes |
+ghmirror is open source under the **GNU AGPL v3.0 or later** (`LICENSE`). Revenue comes from:
+
+| Offer | What the customer gets | Who buys it |
 |---|---|---|
-| A. Commercial licence + subscription | Software under an EULA, updates and support for the term | Simplest to sell. Needs a LICENSE/EULA (§7). |
-| B. Source-available (e.g. BSL), commercial use licensed | Customers can read and audit the code; production use requires a subscription | Common for infrastructure tools; helps security reviews. |
-| C. Open source core + paid services | Free software; revenue from deployment, support and drills | Widest reach, lowest licence revenue. |
+| Deployment service (§3) | A verified copy and a successful failover drill | Teams without time to set it up |
+| Support subscription (§4) | Updates, SLA, help during a real failover | Anyone running it in production |
+| Commercial licence | The same code without the AGPL obligations | Companies that modify it and do not want to publish their changes, or that embed it in a product or hosted service |
 
-**Recommendation:** B. Buyers of a recovery tool will want to audit it. The security model (the
-side channel is root-equivalent, SECURITY.md §4.3) makes code access a selling point.
+**Why AGPL:** anyone may use and audit the code, which buyers of a recovery tool want (the side
+channel is root-equivalent, SECURITY.md §4.3). Anyone who distributes a modified version, or offers
+one to users over a network, must publish the changes under the AGPL. A competitor cannot take the
+code into a closed product or hosted service. Companies that need that pay for the commercial
+licence.
 
 ## 3. Deployment service
 
@@ -120,11 +125,11 @@ No tokens are needed. Never send `.env` or `secrets/`.
 
 | Item | Status | Needed |
 |---|---|---|
-| Licence | **No LICENSE file**: today the code is "all rights reserved" by default | Choose per §2 and add LICENSE plus third-party notices for the dependencies (`engine/requirements.lock`: requests, PyYAML, PyJWT, cryptography, psycopg, …) |
+| Licence | **AGPL-3.0-or-later** (`LICENSE`) | Write the commercial licence text (§2). Add third-party notices for the dependencies (`engine/requirements.lock`: requests, PyYAML, PyJWT, cryptography, psycopg, …), all AGPL-compatible |
 | Product name | "ghmirror" has not been checked | Trademark and name search before marketing; consider a distinct brand |
 | GitHub and GitLab names | Used to describe compatibility | Use them only nominatively ("works with GitHub"), never as part of the product name or logo |
 | GitHub terms | ghmirror reads the customer's own data with the customer's credentials, within API limits | Nothing further; mention in the EULA that the customer authorizes the access |
-| Contributor rights | Single author so far | Contributor licence agreement before accepting outside contributions |
+| Contributor rights | Single author so far | **Required for dual licensing:** a contributor licence agreement before merging any outside contribution, so the commercial licence (§2) can cover all of the code |
 
 ## 8. Readiness gaps before the first paying customer
 
@@ -138,7 +143,7 @@ Ordered by risk, these are the things a careful buyer will ask about.
 | 4 | **No tagged releases, no published image** | Customers need a version to pin and an image they can verify | 1 day; sign images (e.g. cosign) |
 | 5 | **No versioned schema migrations** | Upgrades that change the state schema need a migration path | 1–2 days for a migration framework |
 | 6 | **No external security review** | The side channel and admin tokens make this a high-value target (SECURITY.md) | external engagement |
-| 7 | **No LICENSE / EULA** | Cannot be sold or evaluated legally without one | legal |
+| 7 | **No commercial licence text yet** (the open-source licence is AGPL) | Needed before selling the commercial licence (§2) | legal |
 | 8 | **Single maintainer** | Support tiers need on-call cover | hiring or partner |
 | 9 | **GitLab-to-GitLab metadata sync after failover is not built** | After failover the secondary gets git only (SUPPORT-MATRIX §4) | 2–3 weeks |
 | 10 | **No admin UI**; operations are CLI plus alerts | Fine for platform teams, a hurdle for others | optional |

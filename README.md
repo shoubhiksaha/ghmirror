@@ -15,6 +15,7 @@ primary code host.
   link, SSH keys), restores branch protections, enables CI and makes the other GitLab a push
   mirror of the new primary. `demote` undoes it exactly, so drills are safe.
 
+**In plain language:** [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md).
 **Full guide with screenshots:** [`docs/ghmirror-guide.pdf`](docs/ghmirror-guide.pdf).
 **See it work:** [recorded failover drill](docs/demo) (promote in 7.8 s, a developer merges on GitLab,
 demote in 1.2 s).
@@ -89,6 +90,7 @@ version). GitLab.com SaaS is not supported: it cannot impersonate users or keep 
 
 | | |
 |---|---|
+| [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md) | **Start here:** how it works in plain language, for non-specialists |
 | [`docs/ghmirror-guide.pdf`](docs/ghmirror-guide.pdf) | How it works, setup, a screenshot tour, operations, test results, references |
 | [`docs/INSTALL.md`](docs/INSTALL.md) | Reproducible installation: pinned versions, interactive and unattended install, upgrades |
 | [`examples/`](examples) | Sample configuration (`ghmirror.yaml`, `.env`, `identities.yaml`) exactly as setup writes it |
@@ -125,3 +127,15 @@ verification/    roadblock test scripts and their recorded results
 docs/            install, security, capacity, support matrix, runbook, PDF guide (+ guide-src/), demo, samples
 examples/        sample configuration
 ```
+
+## License
+
+Copyright (C) 2026 Shoubhik Saha.
+
+ghmirror is free software under the **GNU Affero General Public License v3.0 or later**
+([`LICENSE`](LICENSE), SPDX `AGPL-3.0-or-later`). You may use, change and share it. If you
+distribute a modified version, or let people use one over a network (for example as a hosted
+service), you must publish your changes under the same licence.
+
+A commercial licence without these obligations is available from the copyright holder
+([`docs/COMMERCIAL.md`](docs/COMMERCIAL.md)).
