@@ -139,7 +139,7 @@ Ordered by risk, these are the things a careful buyer will ask about.
 |---|---|---|---|
 | 1 | **No end-to-end test with a GitHub organization** (teams, members, the App manifest flow with live clicks) | The main target customer is an organization, and the tests used a personal account | 2–3 days with a test organization |
 | 2 | **No load test** on a realistic estate (hundreds of repositories, tens of thousands of issues). One large history is tested (`git/git`, 86,000 commits, CAPACITY.md §3.1) | Metadata throughput is extrapolated from one small repository | 1 week, including fixes |
-| 3 | **No CI pipeline** (unit tests, image build, e2e against new GitLab releases) | Needed for the compatibility promise in §5 | 2–3 days |
+| 3 | **No e2e in CI.** Unit tests (SQLite and PostgreSQL) and the image build run on every push (`.github/workflows/ci.yml`); Dependabot opens a pull request for each new GitLab release. The e2e suite still runs by hand | Needed for the compatibility promise in §5; requires a GitHub test account as a CI secret | 1–2 days |
 | 4 | **No tagged releases, no published image** | Customers need a version to pin and an image they can verify | 1 day; sign images (e.g. cosign) |
 | 5 | **No versioned schema migrations** | Upgrades that change the state schema need a migration path | 1–2 days for a migration framework |
 | 6 | **No external security review** | The side channel and admin tokens make this a high-value target (SECURITY.md) | external engagement |

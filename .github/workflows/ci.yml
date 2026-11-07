@@ -1,0 +1,50 @@
+# Unit tests (SQLite and PostgreSQL) and an engine image build on every push and pull request.
+# The e2e suite (e2e/run_e2e.sh) needs a real GitHub test account and is not run here.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # same image as deploy/compose/docker-compose.yml
+        image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+        env:
+          POSTGRES_DB: ghmirror
+          POSTGRES_USER: ghmirror
+          POSTGRES_PASSWORD: ghmirror
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U ghmirror -d ghmirror"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      GHMIRROR_TEST_PG: postgresql://ghmirror:ghmirror@localhost:5432/ghmirror
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (pinned versions from requirements.lock)
+        run: pip install -c requirements.lock '.[postgres]' pytest
+      - name: Unit tests
+        run: python -m pytest -q -rs
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build engine image
+        run: docker build -f deploy/compose/Dockerfile -t ghmirror:ci .
+      - name: Smoke test
+        run: docker run --rm --entrypoint ghmirror ghmirror:ci --help

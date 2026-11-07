@@ -1,0 +1,14 @@
+# Weekly update pull requests. CI runs on each one; a person reviews and merges.
+# A pull request for deploy/gitlab is also the signal that a new GitLab release needs checking
+# (docs/COMMERCIAL.md §5).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: /deploy/compose
+    schedule: {interval: weekly}
+  - package-ecosystem: docker-compose
+    directories: [/deploy/compose, /deploy/gitlab]
+    schedule: {interval: weekly}
