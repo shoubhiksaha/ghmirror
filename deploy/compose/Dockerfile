@@ -1,7 +1,7 @@
 # ghmirror engine image. Build from the repository root:
 #   docker build -f deploy/compose/Dockerfile -t ghmirror .
-# Base image pinned by digest (python:3.12-slim, 2026-11-04) so every build starts from the same bytes.
-FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
+# Base image pinned by digest (python:3.15-slim, 2026-11-11) so every build starts from the same bytes.
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git git-lfs openssh-client ca-certificates \
  && rm -rf /var/lib/apt/lists/* \

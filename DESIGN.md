@@ -530,7 +530,7 @@ one promoted.
 ===========================================================================
 # PART C — AS BUILT (engine v0.1, 2026-10-31)
 
-Code: `engine/` (Python 3.12, ~3.8k lines, deps: requests, PyYAML, PyJWT; psycopg for
+Code: `engine/` (Python 3.10+, image on 3.15, ~3.8k lines, deps: requests, PyYAML, PyJWT; psycopg for
 PostgreSQL). Deployment: `deploy/`. Operations: `docs/RUNBOOK.md`. End-to-end test:
 `e2e/run_e2e.sh`. Build-time findings: ROADBLOCKS.md §E.
 

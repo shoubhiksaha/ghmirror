@@ -44,7 +44,9 @@ manifest flow was tested with a simulated GitHub, not with live clicks on github
 
 **Engine host:** Linux with Docker Engine and Compose v2 (tested with Docker 29.5 in a Linux VM).
 The engine also runs without Docker (Python 3.10+, git, optional git-lfs, PostgreSQL; SQLite for
-tests); see `engine/README.md`. The Compose stack uses PostgreSQL 16.
+tests); see `engine/README.md`. The Compose stack uses PostgreSQL 18 and a Python 3.15 engine image. The unit tests run on these
+versions in CI. The end-to-end runs and the failover drill were recorded on Python 3.12 and
+PostgreSQL 16.
 
 ## 3. What is copied
 

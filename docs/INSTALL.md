@@ -20,9 +20,9 @@ Related: [SUPPORT-MATRIX.md](SUPPORT-MATRIX.md) (what is supported), [CAPACITY.m
 | Input | Pinned to | Where |
 |---|---|---|
 | ghmirror itself | the git commit or tag you check out | `git checkout <tag>` |
-| Engine base image | `python:3.12-slim@sha256:b18b261e…31ab30` | `deploy/compose/Dockerfile` |
+| Engine base image | `python:3.15-slim@sha256:65a65fc7…bc36928` | `deploy/compose/Dockerfile` |
 | Python dependencies | exact versions (`requests 2.34.2`, `psycopg 3.3.7`, …) | `engine/requirements.lock` |
-| PostgreSQL | `postgres:16-alpine@sha256:0cefaabd…5731ab` | `deploy/compose/docker-compose.yml` |
+| PostgreSQL | `postgres:18-alpine@sha256:123b1799…f957395` | `deploy/compose/docker-compose.yml` |
 | GitLab (template) | `gitlab/gitlab-ce:19.5.3-ce.0@sha256:6863d156…78b27c` | `deploy/gitlab/docker-compose.yml` |
 | Debian packages in the image (git, git-lfs, openssh-client) | whatever the pinned base image's Debian release ships on build day | not pinned; record `git --version` in your change log |
 
@@ -176,9 +176,9 @@ To roll back, restore that dump, check out the previous tag and run `./setup.sh 
 
 ```sh
 # base images: current digest of a tag
-docker pull python:3.12-slim && docker image inspect python:3.12-slim --format '{{index .RepoDigests 0}}'
+docker pull python:3.15-slim && docker image inspect python:3.15-slim --format '{{index .RepoDigests 0}}'
 # Python dependencies: resolve inside the pinned base image
-docker run --rm -v "$PWD/engine:/src:ro" python:3.12-slim@sha256:<digest> sh -c \
+docker run --rm -v "$PWD/engine:/src:ro" python:3.15-slim@sha256:<digest> sh -c \
   'cp -r /src /tmp/e && rm -rf /tmp/e/.venv && pip install -q "/tmp/e[postgres]" && pip freeze --exclude ghmirror'
 ```
 
