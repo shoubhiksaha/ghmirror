@@ -159,11 +159,11 @@
 
 <!-- ======================= 15 COMMERCIAL ======================= -->
 <h1 class="chapter" id="s15"><span class="num">15</span>Commercial deployment and support (draft)</h1>
-<p class="lead">This chapter is a draft. Price, licence, legal entity and response times are the owner's decisions; the full draft is <code>docs/COMMERCIAL.md</code>.</p>
+<p class="lead">This chapter is a draft. The licence is decided (AGPL-3.0, with a commercial licence on request). Price, legal entity and response times are the owner's decisions; the full draft is <code>docs/COMMERCIAL.md</code>.</p>
 <h2>15.1 Offering</h2>
 <table class="compact">
 <tr><th style="width:22%">Element</th><th>Content</th></tr>
-<tr><td>Packaging (to decide)</td><td>Commercial EULA, source-available (recommended, so buyers can audit a tool with root-equivalent access), or open source with paid services.</td></tr>
+<tr><td>Licence and packaging</td><td>Open source under AGPL-3.0-or-later, so buyers can audit a tool with root-equivalent access. Anyone who offers a modified version as a service must publish the changes. A commercial licence without these obligations, the deployment service and support are sold.</td></tr>
 <tr><td>Deployment service</td><td>
 <ol>
 <li>Assessment: sizing, network, identity.</li>
@@ -187,9 +187,9 @@ About 8–15 consultant days.</td></tr>
 <tr><th style="width:5%">#</th><th style="width:40%">Gap</th><th>Why it matters</th></tr>
 <tr><td>1</td><td>No e2e with a GitHub organization (teams, App clicks)</td><td>Organizations are the main customers.</td></tr>
 <tr><td>2</td><td>No load test on a realistic estate</td><td>Chapter 12 extrapolates from one repository.</td></tr>
-<tr><td>3</td><td>No CI pipeline, tagged releases or signed image</td><td>Needed for the compatibility promise.</td></tr>
+<tr><td>3</td><td>No e2e in CI (unit tests and the image build run on every push), no tagged releases or signed image</td><td>Needed for the compatibility promise.</td></tr>
 <tr><td>4</td><td>No versioned schema migrations</td><td>Upgrades that change the state schema need a path.</td></tr>
 <tr><td>5</td><td>No external security review</td><td>The engine holds high-value credentials.</td></tr>
-<tr><td>6</td><td>No commercial licence text yet (open source under AGPL-3.0); product name not checked</td><td>Cannot be sold or evaluated legally without them.</td></tr>
+<tr><td>6</td><td>No commercial licence text yet (open source under AGPL-3.0); product name not checked</td><td>The commercial licence cannot be sold without it; a name clash could force a rename.</td></tr>
 <tr><td>7</td><td>Single maintainer; no GitLab-to-GitLab metadata sync after failover</td><td>Support cover; completeness of the secondary.</td></tr>
 </table>
