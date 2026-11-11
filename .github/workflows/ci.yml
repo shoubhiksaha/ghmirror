@@ -32,7 +32,7 @@ jobs:
         working-directory: engine
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.15"   # same as the engine image
       - name: Install (pinned versions from requirements.lock)
